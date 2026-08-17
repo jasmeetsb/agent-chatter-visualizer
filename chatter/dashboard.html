@@ -185,6 +185,14 @@ section{margin:30px 0}
 .warnbox{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:4px;
   padding:9px 11px;margin:0 0 12px;font-size:11.6px;line-height:1.5;color:var(--ink-2)}
 .warnbox b{color:var(--ink);font-weight:640}
+/* The same box at the other severity: nothing is wrong, there is just something
+   here you may not know exists. Muted, so it reads as a footnote rather than as
+   the alarm the warn variant is. */
+.infobox{border:1px solid var(--line);background:var(--sunken);border-radius:4px;
+  padding:9px 11px;margin:0 0 12px;font-size:11.6px;line-height:1.5;color:var(--muted)}
+.infobox b{color:var(--ink-2);font-weight:640}
+.warnbox .nb,.infobox .nb{white-space:nowrap;font-family:ui-monospace,SFMono-Regular,
+  Menlo,Consolas,monospace;font-size:.94em}
 .topline{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:14px;
   align-items:start}
 @media (max-width:760px){.topline{grid-template-columns:minmax(0,1fr)}}
@@ -915,14 +923,21 @@ function renderInsights(d){
     'gap in it. What was discussed comes from the headlines the senders wrote; ' +
     'what was decided is the sentence in which one of them said so.'));
 
-  /* Asked for summaries, could not produce them. Say why here rather than only
-     on the terminal that started the server: the person reading the panel is
-     often not the person who ran the command, and "the feature looks broken" is
-     the impression left by silence. */
-  if(SUMMARY_NOTE){
-    const w = el('div', 'warnbox');
-    w.appendChild(el('b', null, 'Summaries unavailable. '));
-    w.appendChild(document.createTextNode(SUMMARY_NOTE));
+  /* Why the summary tier looks the way it does. Says it here rather than only on
+     the terminal that started the server: the person reading the panel is often
+     not the person who ran the command, and silence reads as "the feature is
+     broken" — or, worse, as the feature not existing at all. */
+  if(SUMMARY_NOTE && SUMMARY_NOTE.text){
+    const warn = SUMMARY_NOTE.level === 'warn';
+    const w = el('div', warn ? 'warnbox' : 'infobox');
+    w.appendChild(el('b', null, warn ? 'Summaries unavailable. ' : 'Summaries. '));
+    /* Keep flags, env vars and paths on one line. Wrapped mid-token, `--summarize`
+       renders as "-- summarize", which is not a thing anyone can paste. Split
+       rather than innerHTML: this text is ours, but the rule that nothing here
+       is built from a string of markup is worth not making exceptions to. */
+    SUMMARY_NOTE.text.split(/(--[\w-]+|[A-Z_]{6,}|~?[\w./-]*\.env)/).forEach((part, i) => {
+      w.appendChild(i % 2 ? el('span', 'nb', part) : document.createTextNode(part));
+    });
     box.appendChild(w);
   }
 

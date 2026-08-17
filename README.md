@@ -173,10 +173,19 @@ uvx --with anthropic \
     agent-chatter --summarize                            # without installing anything
 ```
 
-Without a key the dashboard still works and says so, at the top of the panel
-rather than only in the terminal that started it:
+The panel always says which of these you are looking at, at the top, rather than
+leaving it to the terminal that started the server — the person reading the page
+is often not the person who ran the command:
 
-<img src="docs/img/summary-warning.png" width="420" alt="Summaries unavailable — no API key configured">
+<img src="docs/img/summary-note.png" width="420" alt="Summaries are off — how to turn them on">
+
+| What you ran | What the panel says |
+|---|---|
+| nothing — no key | how to turn summaries on |
+| nothing — key already set | just add `--summarize` |
+| `--summarize`, no key | **Summaries unavailable**, and why |
+| `--summarize` with a key | nothing; the summaries are right there |
+| `--demo` | that the demo's summaries ship pre-generated |
 
 Results are cached by conversation content in `~/.cache/agent-chatter/`, so
 re-running is free and only a conversation that has actually grown is paid for

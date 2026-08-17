@@ -46,10 +46,10 @@ def render(data, *, title=DEFAULT_TITLE, heading=None, subtitle=DEFAULT_SUBTITLE
                can tag a message but cannot decide which exchange mattered, and a
                generator would produce confident nonsense. Scrubbed like anything
                else, because findings quote the transcript they describe.
-    summary_note — a line for the top of the insights panel when --summarize was
-               asked for and could not run. Only ever set when it was asked for:
-               explaining an optional feature nobody enabled, on every run, makes
-               that feature everyone's problem.
+    summary_note — {"level", "text"} for the top of the insights panel, or None
+               when summaries are being generated and there is nothing to say.
+               `warn` is a failure, `info` is an invitation; see
+               summarize.note_for().
     """
     findings = [
         {k: (scrub(v) if isinstance(v, str) else v) for k, v in f.items()}
@@ -67,7 +67,8 @@ def render(data, *, title=DEFAULT_TITLE, heading=None, subtitle=DEFAULT_SUBTITLE
             .replace("__DATA__", json.dumps(data, ensure_ascii=False) if data else "null")
             .replace("__FEED__", json.dumps(feed) if feed else "null")
             .replace("__FINDINGS__", json.dumps(findings, ensure_ascii=False))
-            .replace("__SUMMARYNOTE__", json.dumps(summary_note) if summary_note else "null")
+            .replace("__SUMMARYNOTE__",
+                     json.dumps(summary_note, ensure_ascii=False) if summary_note else "null")
             .replace("__POLL__", str(int(poll_ms)))
             .replace("__SILENCE__", str(int(silence_s)))
             .replace("__TITLE__", html.escape(title))

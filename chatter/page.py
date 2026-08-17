@@ -77,9 +77,10 @@ def main():
         summarizer.attach(data)
 
     title = args.title or data.get("title_hint") or R.DEFAULT_TITLE
+    got = any(x.get("ai") for x in data.get("exchanges") or [])
     page = R.render(data, title=title, heading=args.heading,
                     subtitle=args.subtitle, feed=None, findings=findings,
-                    summary_note=S.note_for(args.summarize, summarizer))
+                    summary_note=S.note_for(args.summarize, summarizer, got))
     if not args.attention:
         page = R.strip_attention(page)
 

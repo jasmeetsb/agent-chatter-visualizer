@@ -194,9 +194,10 @@ def main():
     # state.rebuild() has already run, so the hint reflects what was actually
     # loaded rather than what was asked for on the command line.
     title = args.title or state.data.get("title_hint") or R.DEFAULT_TITLE
+    got = any(x.get("ai") for x in state.data.get("exchanges") or [])
     page = R.render(None, title=title, feed="/feed", findings=findings,
                     poll_ms=args.poll, silence_s=args.silence,
-                    summary_note=S.note_for(args.summarize, summarizer))
+                    summary_note=S.note_for(args.summarize, summarizer, got))
     srv = ThreadingHTTPServer((args.host, args.port), handler_for(state, page))
     n = len(state.sources())
     # flush: when this is backgrounded with output redirected, stdout is a pipe

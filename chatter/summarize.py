@@ -100,6 +100,30 @@ NO_SDK_NOTE = (
     "pip install anthropic — or run: uvx --with anthropic agent-chatter "
     "--summarize. Everything below is still the participants' own words.")
 
+# Shown on a normal run, where nobody asked for anything. This started out
+# silent, on the reasoning that a tool nagging about an unconfigured optional
+# feature makes that feature everyone's problem. That was wrong in the only way
+# that matters: the flag is the single thing here you cannot discover by looking
+# at the page, so staying quiet meant the feature was invisible to exactly the
+# people it was built for. One muted line, once, in the panel it applies to.
+OFF_NO_KEY_NOTE = (
+    "Summaries are off. --summarize has Claude write an account of each "
+    "conversation instead of just the senders' headlines. It needs an "
+    "ANTHROPIC_API_KEY in a .env file, in the directory you run from or at "
+    "~/.config/agent-chatter/.env.")
+
+OFF_HAVE_KEY_NOTE = (
+    "Summaries are off. Add --summarize and Claude will write an account of "
+    "each conversation instead of just the senders' headlines — your API key is "
+    "already configured.")
+
+# The demo, which ships its summaries so the tier is visible without a key. Say
+# so, or the one page most people see first quietly implies it came free.
+SHIPPED_NOTE = (
+    "These summaries ship with the demo, already generated. On your own "
+    "transcripts --summarize writes them, which needs an ANTHROPIC_API_KEY in a "
+    ".env file.")
+
 
 # --------------------------------------------------------------------------
 # Key resolution — a .env file, deliberately
@@ -399,16 +423,29 @@ def _now():
     return time.time()
 
 
-def note_for(enabled, summarizer=None):
-    """What the insights panel should say above the entries, or None.
+def note_for(asked, summarizer=None, any_summaries=False):
+    """What the insights panel says above the entries, or None.
 
-    Only ever speaks when --summarize was actually asked for. A tool that nags
-    about an unconfigured optional feature on every run has made the feature
-    everyone's problem.
+    Returns {"level", "text"} — `warn` when someone asked for summaries and did
+    not get them, `info` when nothing is wrong and there is simply something they
+    may not know exists. Both render, and the distinction is the difference
+    between a failure and an invitation.
+
+    Silent in exactly one case: summaries are being generated, so the panel is
+    already showing the thing this would be telling them about.
     """
-    if not enabled:
-        return None
-    return summarizer.note if summarizer else NO_KEY_NOTE
+    if summarizer is not None and summarizer.available:
+        return None                        # generating; nothing to explain
+    if any_summaries:
+        # Summaries on the page but nothing new will be added — the shipped demo
+        # cache, or a cache someone handed over.
+        if asked and summarizer is not None and summarizer.note:
+            return {"level": "warn", "text": summarizer.note}
+        return {"level": "info", "text": SHIPPED_NOTE}
+    if asked and summarizer is not None and summarizer.note:
+        return {"level": "warn", "text": summarizer.note}
+    return {"level": "info",
+            "text": OFF_HAVE_KEY_NOTE if resolve_key()[0] else OFF_NO_KEY_NOTE}
 
 
 def add_arguments(ap):
