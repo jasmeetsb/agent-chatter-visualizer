@@ -20,7 +20,7 @@ chatter/             the package
   mdlog.py           markdown log writer
   examples/          the synthetic fixture, shipped so --demo works when installed
 tools/               fixture generator and verifier
-docs/                DESIGN.md and the README images
+docs/                TRANSCRIPT-FORMAT.md and the README images
 ```
 
 ## Rules that are not style preferences
@@ -101,5 +101,5 @@ able to clone this and run it, or `uvx` it without installing anything.
 
 Comments explain *why*. Several non-obvious choices here exist because the
 alternative was tried and failed on real data, and that reasoning is worth more
-than a description of what the line does. [docs/DESIGN.md](docs/DESIGN.md)
+than a description of what the line does. [docs/TRANSCRIPT-FORMAT.md](docs/TRANSCRIPT-FORMAT.md)
 carries the measurements.

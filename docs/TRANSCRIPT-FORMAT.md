@@ -1,30 +1,17 @@
-# Live multi-session dashboard — design contract
+# Transcript format and data model
 
-What the transcript format actually does, and why this tool reads it the way it
-does. Every claim here was measured on real transcripts from two machines rather
-than inferred from documentation — the two are referred to as machine A and
-machine B throughout.
+Claude Code writes a session transcript as JSONL. When two sessions message each
+other, that exchange is recoverable from those files — but not in one shape, not
+under one identity, and not without several ways to get it silently wrong.
 
-Re-verify before trusting any of it against a new Claude Code version.
+This is what the format actually does, measured on live transcripts from two
+machines rather than inferred from documentation. The two are called machine A
+and machine B throughout. **Re-verify before trusting any of it against a new
+Claude Code version.**
 
-Status of each section is marked SETTLED or OPEN. Do not build against an OPEN
-item.
+If you only read one section, read the one about fabricated messages.
 
-## Why the current tools can't just be made live
-
-`extract-peer-conversation.py` was written for a *pair* of sessions and a
-*finished* transcript. Four things break when you go to N sessions and live:
-
-1. **Identity is binary and hardcoded.** `extract()` emits the literal strings
-   a hardcoded pair of direction strings, and the page derived its channel by
-   testing which one a message started with. There was no room for a third
-   session.
-2. **Merging N transcripts double-counts.** Every logical message exists twice —
-   outbound in the sender's JSONL, inbound in the receiver's. Merging is
-   additive today, so a mesh inflates.
-3. **Full re-parse doesn't scale.** Transcripts are 10–20 MB and append-only.
-4. **The regex fabricates messages.** See below. This is the serious one.
-
+---
 ## Verified facts about the transcript format
 
 Everything here was confirmed empirically on both machines' live transcripts,
@@ -38,7 +25,7 @@ The delivering record carries the message at **top level**, not in the text:
 ```json
 {"type": "user", "isMeta": true, "promptSource": "system",
  "origin": {"kind": "peer",
-            "from": "bridge:session_01EXAMPLEVM2BBBBBBBBBBBB",
+            "from": "bridge:session_01EXAMPLESESSIONBBBBBBBB",
             "name": "session-b",
             "fromMode": "prompting",
             "hopChain": ["aaaa1111bbbb2222cccc3333"],
@@ -281,9 +268,9 @@ The same session is addressed three ways, with the same ULID core:
 
 | Where | Form |
 |---|---|
-| Own transcript, `bridge-session` record | `cse_01EXAMPLEVM1AAAAAAAAAAAA` |
-| Peer's inbound `origin.from` | `bridge:session_01EXAMPLEVM1AAAAAAAAAAAA` |
-| Harness session URL | `session_01EXAMPLEVM1AAAAAAAAAAAA` |
+| Own transcript, `bridge-session` record | `cse_01EXAMPLESESSIONAAAAAAAA` |
+| Peer's inbound `origin.from` | `bridge:session_01EXAMPLESESSIONAAAAAAAA` |
+| Harness session URL | `session_01EXAMPLESESSIONAAAAAAAA` |
 
 Confirmed from both ends, both directions. Join on the ULID core after stripping
 `bridge:session_` / `cse_` / `session_`. Joining on the raw string splits every
@@ -294,7 +281,7 @@ The local `sessionId` uuid is **not** usable as the join key: it does not appear
 in any peer's transcript, and in a mesh we cannot assume we hold every
 transcript. Keep it in the sessions table as nullable enrichment.
 
-## The regex fabricates messages — SETTLED, must fix
+## The naive pattern fabricates messages
 
 The current inbound pattern is:
 
@@ -336,7 +323,7 @@ Measured on one machine's transcript: 6 open tags found, exactly 1 kept, and it 
 real message. The 5 dropped carried attrs `' …'`, `''`, `'" in raw:\n81\t…'`,
 `''`, `'[^'`. Perfect separation on the other machine's transcript as well.
 
-## Event schema — SETTLED except where noted
+## Event schema
 
 Two tables. Events are append-only and immutable; sessions are mutable display
 state re-sent on every poll.
@@ -346,8 +333,8 @@ state re-sent on every poll.
 {"id":      "sha1[:12] of from_id|to_id|scrubbed_body|ordinal",
  "seq":     1417,              // monotonic, doubles as the poll cursor
  "kind":    "peer",            // "peer" | "human"
- "from_id": "01EXAMPLEVM1AAAAAAAAAAAA",   // prefix-stripped ULID core
- "to_id":   "01EXAMPLEVM2BBBBBBBBBBBB",
+ "from_id": "01EXAMPLESESSIONAAAAAAAA",   // prefix-stripped ULID core
+ "to_id":   "01EXAMPLESESSIONBBBBBBBB",
  "sent":     "2026-08-16T21:20:31.412Z",  // sender's clock — SendMessage call
  "enqueued": "2026-08-16T21:20:33.980Z",  // recipient's clock — message ARRIVED
  "delivered":"2026-08-16T21:21:42.402Z",  // recipient's clock — recipient CONSUMED it
@@ -362,7 +349,7 @@ state re-sent on every poll.
  "sources": [...]}
 
 // sessions{} — keyed by ULID core
-{"01EXAMPLEVM1AAAAAAAAAAAA": {"name": "session-a",
+{"01EXAMPLESESSIONAAAAAAAA": {"name": "session-a",
                               "aka":  ["session-b"],
                               "uuid": null, "cwd": "…", "branch": "master",
                               "first": "…", "last": "…"}}
@@ -466,13 +453,9 @@ four cross-checked. Coverage is complete.
 Two process notes, since the same shape recurred at three levels today. The
 coverage claim was drawn from the `origin` path alone — the same partial-source
 mistake as the exclusion rule above, one level down. It was then *promoted* by the
-other session from an unverified caveat to a settled disqualification without
-being independently checked, which is worse: amplifying an unchecked finding is
 how a wrong claim acquires the appearance of two-source confirmation.
 
-### Events are mostly-append, not append-only — SETTLED
-
-Two-pass pairing means an already-emitted event can change: `sides` mutates from
+### Events are mostly-append, not append-only — Two-pass pairing means an already-emitted event can change: `sides` mutates from
 `"out"` to `"both"`, and — worse — an unpaired outbound and an unpaired inbound
 are two events with two ids that **merge into one** when pass 2 succeeds. That is
 an update plus a retraction. It is not an edge case: it is the normal path
@@ -502,7 +485,7 @@ It is forced, not stylistic:
   on screen, not by `seq`, so a backfilled event inserts in place instead of
   yanking the viewport.
 
-### SETTLED — `id` ordinal and cross-side pairing
+### `id` ordinal and cross-side pairing
 
 Repeated short bodies (`ack`, `ping`, `rerun it`) must not collide, but an
 ordinal computed per transcript only agrees across sides if no message is lost —
@@ -521,7 +504,7 @@ pass 2  leftovers: pair out/in within a time window, nearest first
 pass 3  still unpaired -> genuine sides:"out" or sides:"in"
 ```
 
-### SETTLED — `seq` ordering
+### `seq` ordering
 
 `seq` is the poll cursor and must be stable across restarts, but it is assigned
 at merge time, and a transcript added later wants low seq numbers already issued.
@@ -532,7 +515,7 @@ tolerates an event arriving with a `sent` older than everything on screen and
 places it correctly rather than appending — confirmed by the view owner, and safe
 because of the pure-function-of-full-event-set rule above.
 
-## Architecture — SETTLED
+## Architecture
 
 **One model, two front-ends.** The existing rule is "only one parse"; at N
 sessions that has to become "only one *model*". Parse, identity resolution, ULID
@@ -552,79 +535,7 @@ contained, CSP-safe, scrubbed, findings never generated — those hold. But the
 implementation currently hardcodes binary identity and renders phantoms, so
 freezing the code would ship those forever.
 
-## Views
-
-Ranked by whether they tell you something you would act on.
-
-**The `Built` column is not decoration.** This table began as a list of what to
-build, and was read later as a description of what exists — the two drifted in
-both directions without anyone asserting anything false. Tag drift stayed on the
-list from the first message through every revision and reached the PR body as a
-shipped feature; it was never written. Queue dwell went the other way: it came out
-of the dwell-versus-depth argument, was built, and was never added here. A plan
-item ages into a claim about the artifact unless the document says which it is.
-
-| View | Built | Signal |
-|---|---|---|
-| Mesh graph | yes | Who talks to whom; node size = volume sent, edge weight = message count. The thing the pair-only page structurally cannot show. It does NOT pulse on a new message — that was claimed here and never built, the third time this table has described an intention as a fact. |
-| Swimlanes | yes | One lane per session on a shared time axis — bursts, silences, who is waiting. Human turns render as marks here. |
-| Queue dwell | yes | `enqueued → delivered` per message. Measures *interruptibility* — how long until the recipient's current tool call finished — not backlog. One long operation and a real backlog produce identical dwell. |
-| Reply latency | yes | Per pair. A spike is how you notice a stuck or dead session. |
-| Live stream | yes | The current message list, tailing, auto-scroll pausing on interaction. |
-| Attention panel | yes | Structural signals only — silence, unanswered-after-N, delivery confirmation. Live state; never persisted into the static page. |
-| Tag drift | **no** | Heuristic tags as a stacked area over time. Decided, never built. Tags currently exist only as filter chips on the stream. |
-| Saturation | **no** | Queue depth per session over time — enqueued-but-unresolved at each instant. Depth > 1 is a backlog; depth 1 with high dwell is one long operation. Deliberately parked: depth cannot exceed 1 with fewer than three live sessions, so it reads flat on every dataset we can test. The fixture carries a depth-2 interval for when a real three-session mesh exists. |
-
-## Timestamps — user requirement, SETTLED
-
-Stated directly by the owner: *"plz make sure time stamps are included in the app
-you end up building."* Treated as a hard requirement on the renderer, not a
-nice-to-have. The schema already carries the data, so nothing changes in the model
-contract — but two clocks that are each nullable make "show the time" less trivial
-than it sounds, and the failure mode is showing a confident time that is quietly
-the wrong one.
-
-**Every view is a time surface**, not just the stream: the swimlane axis, the
-latency chart, attention entries ("sent 8 min ago, never landed"), and
-last-activity-per-node on the mesh. A monitor where only one panel is timestamped
-is the one people complain about.
-
-**Always say which clock — and there are three, not two.** `sent` (sender's),
-`enqueued` (arrived at recipient) and `delivered` (recipient consumed it). The
-honest answer to "when did this message happen" is three instants, and rendering
-one unlabelled would be a choice made silently on the user's behalf. `sent` is the
-primary display time; the others are shown wherever their delta is meaningful:
-
-```
-sent      -> enqueued    transport latency
-enqueued  -> delivered   queue dwell
-```
-
-When only some exist that must be *visually* unambiguous rather than a bare
-stamp. Where we hold only the sender's transcript, all three of
-`enqueued`/`delivered`/dwell are null — and **that null is data, not absence**: it
-is exactly the delivery-confirmation signal. It must not render as an empty cell.
-
-**Absolute and relative, both.** Relative ("3m ago") is what a live monitor wants;
-absolute is what you need to correlate against a commit or the other machine's
-log. Relative labels **recompute on the poll tick** — a "2m ago" baked at render
-and now ten minutes stale is worse than no timestamp at all.
-
-**Timezone.** Transcript stamps are ISO-8601 UTC. Two machines need not share a
-zone and the viewer is a third party to both, so render in the *viewer's* local
-zone, keep UTC in the `title`, and label the zone visibly. Sessions rendering in
-their own local zones would make the swimlane silently unalignable — the same
-class of failure as the three-namespace join.
-
-**Include the date.** `ts()` in the existing extractor formats `"%H:%M"` and drops
-the date entirely. Fine for a one-day pair session, wrong for a multi-day mesh.
-Since the live and static pages are now one renderer, fixing it fixes both.
-
-**Precision.** Stamps carry milliseconds; keep ms internally because cross-machine
-reply latency is where it matters, render to the second, and do not round-trip
-through a lossy format.
-
-## Attention panel — SETTLED, with a hard line
+## Alerts
 
 An alert panel is what makes this a monitor rather than a lava lamp, but it sits
 next to the standing rule that the tool **never generates findings**. Two
@@ -669,152 +580,3 @@ threat model.
   render one of them with `innerHTML` for convenience.
 - The model is not trusted to have sanitized anything; the view sanitizes.
 - `src_id` exists so local filesystem paths never reach the page at all.
-
-## Ownership
-
-Neither session edits the other's files. If you need a change on the other side,
-send a message.
-
-| Owner | Files |
-|---|---|
-| machine A | `chatter/model.py` — parse (origin primary + attributed fallback), ULID normalization, sessions table, two-pass pairing, tail/checkpoint, seq + snapshot_id, both human shapes, `hops`, queue-operation exclusion. Plus `examples/`. |
-| machine B | Renderer, server, all views. Imports the model so the static builder resolves identically. |
-
-### Fixture
-
-`examples/` currently contains **zero** `origin` records — `make-sample-transcript.py`
-hand-builds the legacy tag shape, so the fixture exercises only the fallback
-path. Regenerating it is a real deliverable, not a detail: otherwise we build the
-primary path and test the legacy one.
-
-It must carry every case that has bitten us, because each one is a regression
-someone would otherwise reintroduce:
-
-- `origin`-shaped records (the primary path) **and** legacy tag-shaped ones.
-- **At least one phantom** — a record whose text quotes the regex — so the
-  discriminator stays under test.
-- A rename mid-transcript, so the first-`agent-name` trap stays caught.
-- A `queue-operation` / `enqueue` duplicating a peer message that is *also*
-  delivered via `origin`, so intra-transcript double-counting stays caught.
-- A mid-turn human injection with **no** `origin.kind == "human"` record.
-- A normal typed human turn *with* one, so both shapes are exercised together.
-- A `hopChain` with a repeated element, so nobody re-reads it as a relay path.
-- An unpaired outbound, for the delivery alert.
-- A pair that only resolves on the second pass, so the `snapshot_id` resync path
-  is exercised rather than assumed.
-
-## How every error here was actually caught
-
-Two different things happened here and the section is weaker if they are merged.
-
-**Traps found by inspection, before anything was built on them:** the
-first-`agent-name` rename, and the regex that fabricates messages. Nobody
-believed the wrong thing; measurement came first. These cost nothing.
-
-**Claims that were asserted and then had to be withdrawn** — eight of them, and
-these are the expensive kind:
-
-| Claim | Held by | Killed by |
-|---|---|---|
-| `origin` is the complete inbound set | machine A | the other machine's 3-of-5 mid-turn sample |
-| `hopChain` is a relay path | machine A | repetition, then the stall |
-| `hopChain` grows +1 per message, so it is lineage | machine B | the stall at length 3 |
-| `len(hopChain)` == exchange depth; viable threading key | both | the stall at length 3 |
-| `hopChain` is unreadable on mid-turn deliveries | machine B, amplified by machine A | the `hop-chain` attribute on the enqueue copy |
-| Delivery-mode regimes are cleanly separated | machine A | the other machine's `n=7` against one machine's `n=2` |
-| The empty credential grep is a shell quirk | machine B | the NUL bytes in the template |
-| `events[]` is append-only and immutable | machine A | argument, not data — see below |
-
-Four were one machine's, three the other machine's, one both — and the counting matters, because this
-table was written twice with the wrong tally. The first version merged in two
-traps found by inspection, inflating the count. The correction then cited
-`append-only` as a withdrawn claim while leaving it out of the table, so the table
-undercounted by one and the prose and the rows disagreed. Both errors ran in the
-generous direction, each time toward the *other* session — which is the bias the
-table exists to remove, recurring inside the mechanism built to catch it. If a
-record is meant to be checkable, the count has to reconcile with the rows.
-
-The last row is the exception that keeps the rest honest. `append-only` was killed
-by an **argument** — that two-pass pairing merges two emitted events into one, so
-the wire cannot be append-only — and not by anyone's sample. It is the only row of
-which that is true. Every other claim survived its holder's own review and died on
-the other machine's *data*. That distinction is the whole reason "agree freely on
-reasoning, never on measurements" is stated as the rule below: reasoning is the
-one thing that did transfer between machines without needing to be re-run.
-
-**In every case the wrong answer explained all the data that machine had.** Not a
-sloppy answer — a *fitting* one. `origin` really was present on every message machine A
-held. The chain really did grow by one per message across every sample machine B had.
-The regimes really were three orders of magnitude apart in one machine's two observations.
-A wrong explanation that fits the evidence ends the investigation, because there
-is nothing left to be curious about.
-
-The NUL bug is the sharpest instance. The mandated credential grep returned no
-output; that was read as a shell-quoting quirk, a different tool was used to get
-the number, and the check was recorded as passing. The explanation was plausible,
-it fit, and it was produced *while actively verifying the credential path* — the
-one place where suspicion should have been highest. Care was not the missing
-ingredient. Neither was expertise.
-
-What actually broke each of these was the same thing every time: **the other
-machine held a sample that could produce a counterexample.** one machine's transcript had
-zero mid-turn peer deliveries and structurally could not have refuted "origin is
-complete". the other machine's had seven and refuted it immediately. Neither session was more
-careful than the other; they had different data.
-
-So the actionable rule is not "be careful", which nobody can act on. It is:
-
-- **Verify against a sample that can falsify you.** If a claim cannot fail on the
-  data in front of you, you have not tested it. Say `n=`, and say what the sample
-  structurally cannot contain.
-- **Agree freely on reasoning; never on measurements.** This is the operational
-  form of the rule, and it is the one that would have caught the row with both
-  names on it. Accepting the other session's *argument* without re-deriving it is
-  fine — a design trade survives being taken on its merits. Accepting a *number*
-  or a *sample* without re-running it on your own machine is not, even when you
-  fully expect it to pass, because expecting it to pass is exactly the state in
-  which nobody checks.
-- **Do not promote another party's unverified finding.** One session's unchecked
-  caveat was amplified into a settled rule without independent checking. That is
-  worse than the original error: it gives a wrong claim the appearance of
-  two-source confirmation, and the second source is what everyone trusts.
-- **A check that can be skipped invisibly is worse than no check**, because it is
-  trusted. Prefer checks that fail loudly over checks that go quiet.
-- **State what remains unverified, in the handover** — but do not mistake stating
-  it for handling it. See below.
-
-### A caveat is not a check
-
-For most of this work, "neither machine has a browser, so nothing about how the
-page *looks* is verified by either of us" sat in this document as an honest
-caveat, repeated in every handover. It was true, it was prominent, and it was
-worth nothing.
-
-Writing down that you cannot check something is not a mitigation. It makes the gap
-legible while leaving it exactly as open as it was. We had already written the
-rule one section up — verify against a sample that can falsify you — and then held
-an entire category with **no sample at all**, and let a documented acknowledgement
-stand in for one.
-
-What it cost, concretely. While that caveat stood, a PR went up describing four
-working views. One clipped its labels by up to 63px. One pushed the body into
-horizontal scroll on any phone. The attention panel emitted one alert per unpaired
-message — 1643px and 31 rows on a real transcript, two sentences repeated — which
-made it unusable on the only kind of data anyone will actually point this at, and
-buried the single actionable row underneath. Six rounds of arguing about the data
-found none of them. Two rounds with a real browser found all three, plus two more.
-
-The pattern is the same as every row in the table, one level up: **correct on the
-input we built, wrong on the input people have.** The rendered page was not a
-different *kind* of claim; it was a claim for which we had no input at all, so
-nothing could falsify it and everything about it stayed true by default.
-
-So the rule has a second half. If a category cannot be checked, the task is to get
-the instrument, not to document its absence. Installing a headless browser took one
-session a few minutes and immediately paid for itself several times over. The cost
-of the gap was not the caveat being wrong — it was right — it was that being right
-about a gap does nothing to close it.
-
-This is also the argument for the tool itself. A commit records what was decided.
-It does not record that the other session's data refuted yours, which is the only
-reason any of this got fixed.

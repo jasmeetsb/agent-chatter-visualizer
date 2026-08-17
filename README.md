@@ -286,9 +286,11 @@ they cannot disagree about what was said.
 The built page is self-contained — no external fonts, scripts or images — so it
 works from `file://` and survives a strict CSP.
 
-**[docs/DESIGN.md](docs/DESIGN.md)** records every decision with the measurement
-behind it, including a table of the claims that were confidently wrong before
-they were right.
+**[docs/TRANSCRIPT-FORMAT.md](docs/TRANSCRIPT-FORMAT.md)** documents the
+transcript format itself — the routes a peer message arrives by, how identity
+survives renames and several address namespaces, the three clocks, and the ways a
+naive parser gets each of them silently wrong. Useful whether or not you use this
+tool.
 
 ---
 
