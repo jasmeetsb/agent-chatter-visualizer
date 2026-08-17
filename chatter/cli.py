@@ -165,12 +165,18 @@ def main():
         # The markdown log has nowhere to put generated prose without blurring it
         # into the quotes around it, and the whole point of the tier is that it
         # is visibly separate. Same reason curated findings are excluded.
-        if args.summarize and mod is not mdlog:
-            argv += ["--summarize", "--summarize-model", args.summarize_model,
+        if mod is not mdlog:
+            # The caps go through whether or not --summarize did. They used to be
+            # bundled with it, which was fine while the flag was the only way to
+            # generate anything — then the button arrived and --summarize-limit
+            # started being silently ignored on the path that now does the work.
+            argv += ["--summarize-model", args.summarize_model,
                      "--summarize-limit", str(args.summarize_limit),
                      "--summarize-chars", str(args.summarize_chars)]
-        if args.summary_cache and mod is not mdlog:
-            argv += ["--summary-cache", args.summary_cache]
+            if args.summarize:
+                argv += ["--summarize"]
+            if args.summary_cache:
+                argv += ["--summary-cache", args.summary_cache]
         argv += extra
         saved = sys.argv
         sys.argv = [mod.__name__] + argv

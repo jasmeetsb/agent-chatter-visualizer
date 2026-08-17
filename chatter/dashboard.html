@@ -916,8 +916,13 @@ function renderInsights(d){
   /* State of the feature, whenever it is not simply working. The person reading
      the panel is often not the person who ran the command, so "nothing here"
      has to say which nothing it is: no conversations yet, no key, or a key and
-     nobody has pressed the button. */
-  if(!done.length || summarizeState.busy || SUMMARIZE.note){
+     nobody has pressed the button.
+
+     `done.length < xs.length` is the second-run case and was missing: come back
+     tomorrow with three conversations already summarised and four new ones, and
+     the panel showed the three and no way to ask for the rest. It only looked
+     right in testing because an unrelated note happened to be set. */
+  if(!done.length || done.length < xs.length || summarizeState.busy || SUMMARIZE.note){
     box.appendChild(summarizeBox(xs.length, done.length));
   }
   if(!done.length) return;
@@ -984,7 +989,15 @@ function summarizeBox(total, done){
     w.appendChild(document.createTextNode(summarizeState.err));
     return w;
   }
-  if(SUMMARIZE.note) w.appendChild(noteText(SUMMARIZE.note.text));
+  if(SUMMARIZE.note){
+    w.appendChild(noteText(SUMMARIZE.note.text));
+  } else if(done && total > done){
+    /* Some already done, some not — say which, or the button's count is a number
+       with nothing to compare it against. */
+    w.appendChild(document.createTextNode(
+      done + ' of ' + total + ' conversations summarised. The rest are newer than ' +
+      'the last run, or have grown since.'));
+  }
 
   /* The button only exists when a key is configured AND this is a live server —
      a frozen page has nothing to POST to. Both are decided server-side; the page

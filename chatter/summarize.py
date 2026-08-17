@@ -595,9 +595,11 @@ def from_args(args):
                    auto=bool(getattr(args, "summarize", False)),
                    limit=MAX_CONVERSATIONS if limit is None else limit,
                    conv_chars=getattr(args, "summarize_chars", CONV_CHARS))
-    # The demo hands over a cache somebody else generated. Remembered so the
-    # panel can say so rather than implying those summaries came free.
-    s.shipped = bool(path)
+    # Only the bundled demo cache, not any --summary-cache. `bool(path)` put
+    # "these summaries ship with the demo" on top of a real project the moment
+    # someone pointed --summary-cache at a file of their own.
+    s.shipped = bool(path) and os.path.dirname(os.path.abspath(path)).endswith(
+        os.path.join("chatter", "examples"))
     return s
 
 
