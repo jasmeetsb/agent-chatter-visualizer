@@ -33,7 +33,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("transcripts", nargs="+")
     ap.add_argument("-o", "--out", default="mesh.html")
-    ap.add_argument("--title", default="Agent mesh")
+    ap.add_argument("--title", default=None,
+                    help="page heading and browser title. Defaults to the "
+                         "project name when every transcript came from one, "
+                         f"else {R.DEFAULT_TITLE!r}.")
     ap.add_argument("--heading", help="page heading, if different from --title")
     ap.add_argument("--subtitle", default=R.DEFAULT_SUBTITLE)
     ap.add_argument("--findings", metavar="FILE",
@@ -73,7 +76,8 @@ def main():
         summarizer.fill(data, progress=lambda m: print(m, file=sys.stderr, flush=True))
         summarizer.attach(data)
 
-    page = R.render(data, title=args.title, heading=args.heading,
+    title = args.title or data.get("title_hint") or R.DEFAULT_TITLE
+    page = R.render(data, title=title, heading=args.heading,
                     subtitle=args.subtitle, feed=None, findings=findings,
                     summary_note=S.note_for(args.summarize, summarizer))
     if not args.attention:

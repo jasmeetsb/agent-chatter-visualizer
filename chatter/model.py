@@ -99,7 +99,30 @@ def project_label(slug):
     """
     if not slug:
         return ""
-    return _PROJ_PREFIX.sub("", slug).strip("-") or slug.strip("-")
+    out = _PROJ_PREFIX.sub("", slug).strip("-") or slug.strip("-")
+    # Stripping the leading `-home-<user>-` is not the same as the result being
+    # clean. A project at ~/x/home/bob/y flattens to `-home-u-x-home-bob-y`, and
+    # what survives the prefix is `x-home-bob-y` — still a name, now rendered in
+    # the project selector of everyone's dashboard. Second time a "the prefix is
+    # gone so it must be safe" assumption has been wrong here.
+    return unhome(out)
+
+
+def title_hint(paths):
+    """A heading to use when nobody passed --title, or None.
+
+    Only when every transcript came from the SAME real Claude project directory.
+    A directory is only a project if its name is a flattened project path, which
+    is what `_PROJ_PREFIX` recognises — the bundled fixture lives in `mesh/`, and
+    the cross-machine workflow rsyncs both sides into a staging directory, and
+    neither of those names anything a reader would recognise. Putting "mesh" in
+    someone's browser tab is worse than not naming it at all.
+    """
+    slugs = {os.path.basename(os.path.dirname(os.path.abspath(p))) for p in paths}
+    if len(slugs) != 1:
+        return None                       # several projects: name none of them
+    slug = slugs.pop()
+    return project_label(slug) if _PROJ_PREFIX.match(slug) else None
 
 
 def unhome(text):
@@ -926,6 +949,7 @@ def build(paths):
 
     xchg, thresh = exchanges(events)
     out = {"events": events, "sessions": sessions, "sources": sources,
+           "title_hint": title_hint([s.path for s in live]),
            "exchanges": xchg, "exchange_gap_s": thresh,
            "snapshot_id": f"s{_STATE['snapshot']:04d}",
            "seq": _STATE["next_seq"] - 1}
@@ -936,6 +960,28 @@ def build(paths):
     # `src_id` was designed specifically to prevent it. A check that can only be
     # skipped by deleting it is worth more than remembering the rule.
     _leak = leaked
+
+    # Project labels, which reach the page as the selector and the heading. Both
+    # come from a directory name, and both were added after the guard was
+    # written — the fifth and sixth routes for the same leak.
+    for src in sources:
+        hit = _leak(src.get("project"))
+        if hit:
+            raise ValueError(
+                f"refusing to emit: project label {src['project']!r} contains a "
+                f"username ({hit!r}). It renders in the project selector. Extend "
+                f"unhome() rather than relaxing this check.")
+    for meta in sessions.values():
+        hit = _leak(meta.get("project"))
+        if hit:
+            raise ValueError(
+                f"refusing to emit: session project label contains a username "
+                f"({hit!r}).")
+    hit = _leak(out.get("title_hint"))
+    if hit:
+        raise ValueError(
+            f"refusing to emit: derived page title {out['title_hint']!r} "
+            f"contains a username ({hit!r}).")
 
     for sid, meta in sessions.items():
         for field, val in (("id", sid), ("name", meta.get("name")),

@@ -276,8 +276,14 @@ agent-chatter --project <name>   # one project: path, folder name, or fragment
 agent-chatter --watch <dir>      # serve every transcript in a directory
 agent-chatter --findings f.json  # add your curated entries
 agent-chatter --summarize        # have Claude write the conversation summaries
+agent-chatter --title "Q3 migration"   # heading and browser tab
 agent-chatter path/to/*.jsonl    # explicit transcripts, skipping discovery
 ```
+
+The heading names the project when every transcript came from one, and falls
+back to *Agent conversations* otherwise — for the demo, for a `--watch`
+directory, or when you are looking at several projects at once. `--title`
+overrides it.
 
 Human turns are hidden by default, with an **Agents only / Humans shown** toggle
 in the page header. This is a view of what the *agents* said to each other, and

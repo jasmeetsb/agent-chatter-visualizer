@@ -21,13 +21,20 @@ from .scrub import scrub
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(HERE, "dashboard.html")
 
+# Used when nobody passed --title and the transcripts do not all come from one
+# identifiable project. The former default was "Agent mesh", left over from when
+# the commands were serve-mesh.py and build-mesh-page.py — a word that appears
+# nowhere in the tool's name, its README or its install instructions, so the
+# first place a new user met it was the heading of their own dashboard.
+DEFAULT_TITLE = "Agent conversations"
+
 DEFAULT_SUBTITLE = (
     "Every message exchanged between the coordinating sessions, with who sent it, "
     "when it was sent, when it arrived, and when the recipient actually read it."
 )
 
 
-def render(data, *, title="Agent mesh", heading=None, subtitle=DEFAULT_SUBTITLE,
+def render(data, *, title=DEFAULT_TITLE, heading=None, subtitle=DEFAULT_SUBTITLE,
            feed=None, poll_ms=2000, silence_s=600, findings=None,
            summary_note=None):
     """Return the complete page.

@@ -167,7 +167,10 @@ def main():
                     help="seconds before a quiet session raises an alert")
     ap.add_argument("--findings", metavar="FILE",
                     help="curated findings JSON; see README. Never generated.")
-    ap.add_argument("--title", default="Agent mesh")
+    ap.add_argument("--title", default=None,
+                    help="page heading and browser title. Defaults to the "
+                         "project name when every transcript came from one, "
+                         f"else {R.DEFAULT_TITLE!r}.")
     S.add_arguments(ap)
     args = ap.parse_args()
 
@@ -188,7 +191,10 @@ def main():
     if summarizer and summarizer.available:
         threading.Thread(target=state.summarize_loop, daemon=True).start()
 
-    page = R.render(None, title=args.title, feed="/feed", findings=findings,
+    # state.rebuild() has already run, so the hint reflects what was actually
+    # loaded rather than what was asked for on the command line.
+    title = args.title or state.data.get("title_hint") or R.DEFAULT_TITLE
+    page = R.render(None, title=title, feed="/feed", findings=findings,
                     poll_ms=args.poll, silence_s=args.silence,
                     summary_note=S.note_for(args.summarize, summarizer))
     srv = ThreadingHTTPServer((args.host, args.port), handler_for(state, page))
