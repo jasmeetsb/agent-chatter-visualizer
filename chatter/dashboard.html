@@ -141,8 +141,7 @@ section{margin:30px 0}
 .insights{position:sticky;top:14px;background:var(--surface);border:1px solid var(--line);
   border-radius:5px;padding:14px 15px;box-shadow:var(--shadow);max-height:calc(100vh - 40px);
   overflow:auto}
-.insights h3{margin:0 0 3px;font-size:13.5px;font-weight:640}
-.insights .why{margin:0 0 12px;font-size:11.5px;color:var(--faint);line-height:1.45}
+.insights h3{margin:0 0 12px;font-size:13.5px;font-weight:640}
 .ins{border-left:3px solid var(--bar);padding:8px 0 8px 11px;margin:0 0 11px;cursor:pointer}
 .ins:hover .q{color:var(--ink)}
 .ins[data-kind="reversed"]{--bar:var(--critical)}
@@ -918,10 +917,6 @@ function renderInsights(d){
   const box = document.getElementById('insights'); if(!box) return;
   clear(box);
   box.appendChild(el('h3', null, 'Key insights & decisions'));
-  box.appendChild(el('p', 'why',
-    'One entry per conversation — a run of agent-to-agent messages with no long ' +
-    'gap in it. What was discussed comes from the headlines the senders wrote; ' +
-    'what was decided is the sentence in which one of them said so.'));
 
   /* Why the summary tier looks the way it does. Says it here rather than only on
      the terminal that started the server: the person reading the panel is often
