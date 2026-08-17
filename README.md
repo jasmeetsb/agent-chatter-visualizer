@@ -205,7 +205,7 @@ agent-chatter: summarising 7 conversation(s) with claude-opus-5 —
 
 | Cap | Default | Why |
 |---|---|---|
-| `--summarize-limit N` | 20 conversations per run, newest first | A long-running project has months of them; the recent ones are what you are looking at. `0` for all. |
+| `--summarize-limit N` | 20 conversations, newest first | A ceiling for the **whole run**, not a batch size — a dashboard left open all day never exceeds it. A long-running project has months of conversations and the recent ones are what you are looking at. `0` for all. |
 | `--summarize-chars N` | 12,000 characters per conversation | Over this, the **middle** is dropped and the gap marked — the opening says what the exchange was about and the closing says how it resolved. `0` for no limit. |
 | cache | on | Keyed by conversation content in `~/.cache/agent-chatter/`. Re-running is free; only a conversation that actually grew is paid for twice. |
 | settle window | 2 minutes | A conversation still in progress is left alone, so a live exchange is not re-summarised on every message that lands. |
@@ -215,6 +215,10 @@ of them 52,000 on its own. The per-conversation cap took that to 57,000 — the
 same summaries for about a third of the input. Whatever a cap leaves out is
 reported, on the terminal and in the panel; the tool never quietly decides some
 conversations were not worth summarising.
+
+With the defaults, the most a single run can send is 20 × 12,000 characters —
+about 60,000 input tokens. That is the ceiling whether you build one page or
+leave the live dashboard open all day.
 
 The bundled `--demo` ships its summaries pre-generated, so you can see the tier
 before spending anything at all.

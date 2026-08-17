@@ -139,9 +139,10 @@ OFF_HAVE_KEY_NOTE = (
 # The demo, which ships its summaries so the tier is visible without a key. Say
 # so, or the one page most people see first quietly implies it came free.
 CAPPED_NOTE = (
-    "The {n} oldest conversation(s) were not summarised — one run summarises the "
-    "{limit} most recent, so a long history does not become one large bill. "
-    "Raise it with --summarize-limit, or pass 0 for all of them.")
+    "The {n} oldest conversation(s) were not summarised. This run summarises at "
+    "most {limit} of them, newest first, so a long history does not become a "
+    "large bill — and leaving the dashboard open does not keep spending. Raise "
+    "it with --summarize-limit, or pass 0 for all of them.")
 
 SHIPPED_NOTE = (
     "These summaries ship with the demo, already generated. On your own "
@@ -334,6 +335,12 @@ class Summarizer:
         self.limit = limit
         self.conv_chars = conv_chars
         self.skipped = 0            # over the limit, so never sent; reported
+        # Counted for the life of this process, not per call. The live server
+        # calls fill() every ten seconds forever, so a per-call cap is a batch
+        # size and not a ceiling: a dashboard left open would work through a
+        # project's entire history twenty conversations at a time. The flag reads
+        # like a ceiling, so it has to be one.
+        self.generated = 0
         self.key, self.key_from = resolve_key()
         self.client = None
         self.note = None            # what to tell the reader, or None
@@ -388,6 +395,7 @@ class Summarizer:
         now = _now()
         out = []
         self.skipped = 0
+        room = (self.limit - self.generated) if self.limit else None
         for x in data.get("exchanges") or []:
             end = _epoch(x.get("end"))
             if end is not None and now - end < self.settle_s:
@@ -396,7 +404,7 @@ class Summarizer:
             text = transcript(x, events_by_id, sessions, self.conv_chars)
             if not text or self.cache.get(_key(self.model, text)):
                 continue
-            if self.limit and len(out) >= self.limit:
+            if room is not None and len(out) >= max(room, 0):
                 self.skipped += 1
                 continue
             out.append((x, text))
@@ -422,8 +430,9 @@ class Summarizer:
             progress(f"summarising {len(todo)} conversation(s) with {self.model} — "
                      f"~{tokens:,} input tokens, roughly ${usd:.2f} plus output")
             if self.skipped:
-                progress(f"  {self.skipped} older conversation(s) not summarised "
-                         f"(--summarize-limit {self.limit}); raise it or pass 0 for all")
+                progress(f"  {self.skipped} older conversation(s) will not be "
+                         f"summarised — ceiling of {self.limit} for this run "
+                         f"(--summarize-limit; pass 0 for all)")
 
         done = failed = 0
         results = {}
@@ -445,6 +454,7 @@ class Summarizer:
                     done += 1
         for k, v in results.items():
             self.cache.put(k, v)
+        self.generated += done
         if progress:
             progress(f"summarised {done} conversation(s)"
                      + (f", {failed} failed" if failed else ""))
@@ -548,8 +558,10 @@ def add_arguments(ap):
                     help=f"model for --summarize (default {MODEL})")
     ap.add_argument("--summarize-limit", type=int, default=MAX_CONVERSATIONS,
                     metavar="N",
-                    help=f"summarise at most N conversations per run, newest "
-                         f"first (default {MAX_CONVERSATIONS}, 0 for no limit)")
+                    help=f"never summarise more than N conversations, newest "
+                         f"first — a ceiling for the whole run, including a "
+                         f"server left open (default {MAX_CONVERSATIONS}, 0 for "
+                         f"no limit)")
     ap.add_argument("--summarize-chars", type=int, default=CONV_CHARS, metavar="N",
                     help=f"characters sent per conversation; over this, the "
                          f"middle is dropped and the gap marked (default "
