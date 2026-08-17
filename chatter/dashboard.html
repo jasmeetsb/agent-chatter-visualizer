@@ -375,6 +375,7 @@ function ingest(payload, replace){
      never pressed the button still needs to show it, and the tab that did needs
      to stop when the work finishes. */
   if(typeof payload.summarizing === 'boolean') summarizeState.busy = payload.summarizing;
+  if(typeof payload.pending === 'number') summarizeState.pending = payload.pending;
 }
 
 /* ---------- time ----------
@@ -922,7 +923,8 @@ function renderInsights(d){
      tomorrow with three conversations already summarised and four new ones, and
      the panel showed the three and no way to ask for the rest. It only looked
      right in testing because an unrelated note happened to be set. */
-  if(!done.length || done.length < xs.length || summarizeState.busy || SUMMARIZE.note){
+  if(!done.length || pendingCount(xs.length, done.length) > 0 ||
+     summarizeState.busy || SUMMARIZE.note){
     box.appendChild(summarizeBox(xs.length, done.length));
   }
   if(!done.length) return;
@@ -966,7 +968,14 @@ function renderInsights(d){
 
 /* Live state of a summarise request, kept out of `store` because it belongs to
    this browser tab rather than to the data. */
-const summarizeState = {busy:false, msg:null, err:null};
+const summarizeState = {busy:false, msg:null, err:null, pending:null};
+
+/* How many the server would actually do if asked. Null on a frozen page, where
+   the question does not arise. Falls back to total-done only when the server has
+   not said — an older server, or the very first paint before the first poll. */
+function pendingCount(total, done){
+  return summarizeState.pending === null ? total - done : summarizeState.pending;
+}
 
 function summarizeBox(total, done){
   const w = el('div', SUMMARIZE.note && SUMMARIZE.note.level === 'warn' ? 'warnbox' : 'infobox');
@@ -1002,7 +1011,7 @@ function summarizeBox(total, done){
   /* The button only exists when a key is configured AND this is a live server —
      a frozen page has nothing to POST to. Both are decided server-side; the page
      never guesses. */
-  const n = total - done;
+  const n = pendingCount(total, done);
   if(SUMMARIZE.can && n > 0){
     const b = el('button', 'sumbtn',
       done ? 'Summarise ' + n + ' more' : 'Summarise ' + n + ' conversation' + (n === 1 ? '' : 's'));

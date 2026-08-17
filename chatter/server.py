@@ -48,6 +48,7 @@ class State:
         self.model = self._load_model()
         self.err = None
         self.summarizing = False
+        self.pending = 0
 
     @staticmethod
     def _load_model():
@@ -68,10 +69,18 @@ class State:
             # Cache only, so the rebuild that runs every two seconds stays free
             # in both senses. Anything not summarised yet is picked up by the
             # background pass below and lands on a later rebuild.
+            pending = 0
             if self.summarizer:
                 self.summarizer.attach(data)
+                if self.summarizer.ready:
+                    # The count the button shows has to be the server's, not
+                    # `total - done` worked out in the page: pending() also drops
+                    # conversations inside the settle window and anything past
+                    # the ceiling, so the page's subtraction can offer work that
+                    # comes back "nothing". Also refreshes .skipped for the note.
+                    pending = len(self.summarizer.pending(data))
             with self.lock:
-                self.data, self.err = data, None
+                self.data, self.err, self.pending = data, None, pending
         except Exception as exc:                       # keep serving the last good snapshot
             with self.lock:
                 self.err = f"{type(exc).__name__}: {exc}"
@@ -149,6 +158,7 @@ class State:
                     "exchange_gap_s": d.get("exchange_gap_s"),
                     "snapshot_id": d["snapshot_id"], "seq": d.get("seq", 0),
                     "summarizing": self.summarizing,
+                    "pending": self.pending,
                     "error": self.err}
 
 
