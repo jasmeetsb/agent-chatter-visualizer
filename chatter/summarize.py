@@ -109,15 +109,23 @@ SCHEMA = {
 }
 
 NO_KEY_NOTE = (
-    "Summaries are off: no API key configured. Create a .env file containing "
-    "ANTHROPIC_API_KEY=sk-ant-… in the directory you run from, or at "
-    "~/.config/agent-chatter/.env. Everything below is still the participants' "
-    "own words.")
+    "Summaries are off: no API key configured. Put ANTHROPIC_API_KEY=sk-ant-… "
+    "in a .env file, in the directory you run from or at "
+    "~/.config/agent-chatter/.env, then restart. Every message is still in the "
+    "stream below.")
 
-NO_SDK_NOTE = (
-    "Summaries are off: the anthropic package is not installed. "
-    "pip install anthropic — or run: uvx --with anthropic agent-chatter "
-    "--summarize. Everything below is still the participants' own words.")
+def no_sdk_note():
+    """Name the interpreter that needs the package.
+
+    "pip install anthropic" is not actionable on a machine with several Pythons,
+    which is most of them: the clone's ./agent-chatter runs under
+    `/usr/bin/env python3`, and a package installed into a virtualenv that is not
+    active, or under a different `pip`, is invisible to it. Printing the exact
+    interpreter turns a guess into a command.
+    """
+    return ("Summaries are off: the anthropic package is not installed for "
+            f"{sys.executable}. Install it with: {sys.executable} -m pip install "
+            "anthropic — then restart.")
 
 # Key is here and the server is live, so the panel can offer a button instead of
 # telling someone to restart with a flag. Short, because the button beside it is
@@ -358,7 +366,7 @@ class Summarizer:
         try:
             import anthropic
         except ImportError:
-            self.note = NO_SDK_NOTE
+            self.note = no_sdk_note()
             return
         self.client = anthropic.Anthropic(api_key=self.key)
         self.ready = True
@@ -603,12 +611,25 @@ def from_args(args):
     return s
 
 
-def report(summarizer, stream=sys.stderr):
-    """One line about what will happen, on the terminal that started it."""
+def report(summarizer, stream=sys.stderr, live=False):
+    """One line about summaries, on the terminal that started it. Always.
+
+    This used to speak only when --summarize was passed, which left the command
+    line silent about the one feature whose state is not obvious: someone starts
+    the server from a clone, sees the usual two lines, opens the page and finds
+    no button, and has nothing to go on. The terminal is where they already are.
+    """
     if summarizer is None:
         return
-    if summarizer.ready and summarizer.auto:
+    if not summarizer.ready:
+        print(f"agent-chatter: {summarizer.note}", file=stream, flush=True)
+    elif summarizer.auto:
         print(f"agent-chatter: summarising with {summarizer.model} "
               f"(key from {summarizer.key_from})", file=stream, flush=True)
-    elif not summarizer.ready and summarizer.auto:
-        print(f"agent-chatter: {summarizer.note}", file=stream, flush=True)
+    elif live:
+        print(f"agent-chatter: summaries ready — press Summarise on the "
+              f"dashboard (key from {summarizer.key_from})", file=stream, flush=True)
+    else:
+        print(f"agent-chatter: key found ({summarizer.key_from}); add "
+              f"--summarize to write summaries into this page",
+              file=stream, flush=True)

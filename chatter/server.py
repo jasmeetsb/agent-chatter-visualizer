@@ -249,7 +249,7 @@ def main():
             findings = json.load(fh)
 
     summarizer = S.from_args(args)
-    S.report(summarizer)
+    S.report(summarizer, live=True)
 
     state = State(args.transcripts, args.watch, args.refresh, summarizer)
     state.rebuild()
