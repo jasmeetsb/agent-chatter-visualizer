@@ -57,9 +57,29 @@ H_B = "dddd4444eeee5555ffff6666"
 BASE_H, BASE_M = 9, 0
 
 
+# The exchange is spread over a morning rather than six minutes, with two real
+# silences in it, so the fixture exercises conversation grouping instead of
+# collapsing into a single run. Offsets below stay in seconds and readable; this
+# table stretches them into three sittings separated by long gaps.
+#   sitting 1  the assignment and the correction        09:00
+#   sitting 2  staging results and the canary           10:20
+#   sitting 3  production sign-off and the loose ends   11:55
+SITTINGS = ((0, 0), (100, 80 * 60), (250, 175 * 60))
+
+
+def _stretch(sec):
+    """Map a compact offset onto whichever sitting it belongs to."""
+    shift = 0
+    for start, delta in SITTINGS:
+        if sec >= start:
+            shift = delta
+    return sec + shift
+
+
 def ts(sec_offset, ms=0):
     """Absolute timestamp from a whole-second offset. Millisecond precision is
     load-bearing: boundary dwell is ~12ms and would round to zero without it."""
+    sec_offset = _stretch(sec_offset)
     total = BASE_M * 60 + sec_offset
     return (f"2026-03-14T{BASE_H + total // 3600:02d}:"
             f"{(total // 60) % 60:02d}:{total % 60:02d}.{ms:03d}Z")
@@ -222,7 +242,8 @@ B2 = ("Staging applied in 6 minutes, backfill running. Flagging something "
       "measured 11s of lock hold with NO concurrent readers. Production reads "
       "that table on every checkout. Start from 500 and verify it.")
 
-B3 = ("Runbook amended to 500 and marked REQUIRES VERIFICATION. Your point "
+B3 = ("You were right that the staging number does not transfer. Runbook amended "
+      "to 500 and marked REQUIRES VERIFICATION. Your point "
       "exposes a second thing I had wrong: I had scheduled the run for 03:00 "
       "to minimise impact, but if the constraint is lock contention rather "
       "than throughput then the window buys a smaller ops team, not a safer "
@@ -238,7 +259,8 @@ B5 = ("Backfill finished: 4,118,204 rows in 41 minutes, zero retries, peak lag "
       "batch size governs safety and barely touches duration. Anyone who later "
       "raises it for speed gets no speedup and all of the lock risk.")
 
-B6 = ("Adding that as a warning rather than a note, because the obvious "
+B6 = ("Agreed, and adopting your number. Adding it as a warning rather than a "
+      "note, because the obvious "
       "optimisation is the dangerous one. Production run is scheduled.")
 
 # Case 14: a fictional credential, so the scrubber is exercised end to end.
@@ -246,7 +268,8 @@ B7 = ("Pasting the staging export config so you have it:\n"
       "  export GH_TOKEN=ghp_EXAMPLEFAKETOKEN0123456789abcdefXY\n"
       "Rotate it after the run — it is scoped to the migration bucket only.")
 
-B8 = ("Canary held at 2% for the full window. p99 moved 3ms. Clearing the "
+B8 = ("Root cause was the index rebuild, not the batched writes. Canary held at "
+      "2% for the full window, p99 moved 3ms. Clearing the "
       "rollout to 25%.")
 
 
