@@ -64,7 +64,8 @@ BASE_H, BASE_M = 9, 0
 #   sitting 1  the assignment and the correction        09:00
 #   sitting 2  staging results and the canary           10:20
 #   sitting 3  production sign-off and the loose ends   11:55
-SITTINGS = ((0, 0), (100, 80 * 60), (250, 175 * 60))
+SITTINGS = ((0, 0), (100, 80 * 60), (250, 175 * 60),
+            (500, 320 * 60), (700, 460 * 60))
 
 
 def _stretch(sec):
@@ -273,6 +274,38 @@ B8 = ("Root cause was the index rebuild, not the batched writes. Canary held at 
       "rollout to 25%.")
 
 
+X1 = ("Index rebuild finished on the replica in 9 minutes flat. I am going to "
+      "hold the 500 batch size for the second table as well rather than retune "
+      "per table — the lock profile is the same and a second guessed number is "
+      "a second thing to be wrong about.")
+
+X2 = ("Agreed, and adopting that as the default for the whole migration. One "
+      "caveat from the canary: orders_archive has no foreign key, so the lock "
+      "argument does not apply there and 5000 is genuinely safe. Worth an "
+      "exception rather than a blanket rule.")
+
+X3 = ("You were right to push on the per-table question. Runbook now says 500 "
+      "everywhere except orders_archive, with the reason written next to it so "
+      "nobody re-derives it at 2am.")
+
+X4 = ("Production window opened. First batch is through: 500 rows, lock hold "
+      "0.8s, p99 checkout unchanged. Continuing.")
+
+X5 = ("Halfway. 2.1M of 4.1M rows, replication lag peaked at 6s against the 30s "
+      "abort threshold. No retries.")
+
+X6 = ("Root cause of the earlier 40ms spike was the archive table sharing a "
+      "connection pool with checkout, not the batch size at all. Repointed it at "
+      "the reporting pool and the spike is gone.")
+
+X7 = ("Migration complete. 4,118,204 rows, 47 minutes, zero retries, zero "
+      "rollbacks. I withdraw my earlier estimate of 40 minutes — the index "
+      "rebuild is the floor and I had it as an afterthought.")
+
+X8 = ("Confirmed on my side: canary is clean at 100% for twenty minutes. "
+      "Closing this out.")
+
+
 def build():
     os.makedirs(OUT, exist_ok=True)
 
@@ -368,8 +401,28 @@ def build():
                  "tag inside a text block. This is how a pre-origin transcript "
                  "looked and the fallback path still has to read it.")
 
+    # -- a fourth sitting: the per-table argument and its resolution
+    alpha.send(ts(500), "beta-staging", "Holding 500 for the second table", X1)
+    beta.recv_boundary(ts(501), ts(501, 11), ALPHA, "alpha-prod", X1, STALL)
+    beta.send(ts(520), "alpha-prod", "Agreed, with one exception", X2)
+    alpha.recv_boundary(ts(521), ts(521, 12), BETA, "beta-staging", X2, STALL)
+    alpha.send(ts(545), "beta-staging", "Runbook updated with the exception", X3)
+    beta.recv_boundary(ts(546), ts(546, 10), ALPHA, "alpha-prod", X3, STALL)
+    gamma.send(ts(560), "alpha-prod", "Archive table needs its own pool", X6)
+    alpha.recv_midturn(ts(561), ts(575, 300), GAMMA, "gamma-canary", X6, STALL)
+
+    # -- a fifth sitting: the production run itself
+    alpha.send(ts(700), "beta-staging", "Production window open", X4)
+    beta.recv_boundary(ts(701), ts(701, 13), ALPHA, "alpha-prod", X4, STALL)
+    beta.send(ts(730), "alpha-prod", "Halfway, lag well inside threshold", X5)
+    alpha.recv_boundary(ts(731), ts(731, 11), BETA, "beta-staging", X5, STALL)
+    beta.send(ts(770), "alpha-prod", "Migration complete: 4.1M rows, 47 minutes", X7)
+    alpha.recv_boundary(ts(771), ts(771, 12), BETA, "beta-staging", X7, STALL)
+    gamma.send(ts(790), "alpha-prod", "Canary clean at 100%", X8)
+    alpha.recv_boundary(ts(791), ts(791, 10), GAMMA, "gamma-canary", X8, STALL)
+
     for t in (alpha, beta, gamma):
-        t.noise(ts(400), "Continuing.")
+        t.noise(ts(820), "Continuing.")
 
     alpha.write(os.path.join(OUT, "alpha.jsonl"))
     beta.write(os.path.join(OUT, "beta.jsonl"))
