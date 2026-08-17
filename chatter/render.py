@@ -28,7 +28,8 @@ DEFAULT_SUBTITLE = (
 
 
 def render(data, *, title="Agent mesh", heading=None, subtitle=DEFAULT_SUBTITLE,
-           feed=None, poll_ms=2000, silence_s=600, findings=None):
+           feed=None, poll_ms=2000, silence_s=600, findings=None,
+           summary_note=None):
     """Return the complete page.
 
     data     — a snapshot dict {events, sessions, sources, snapshot_id, seq}, or
@@ -38,6 +39,10 @@ def render(data, *, title="Agent mesh", heading=None, subtitle=DEFAULT_SUBTITLE,
                can tag a message but cannot decide which exchange mattered, and a
                generator would produce confident nonsense. Scrubbed like anything
                else, because findings quote the transcript they describe.
+    summary_note — a line for the top of the insights panel when --summarize was
+               asked for and could not run. Only ever set when it was asked for:
+               explaining an optional feature nobody enabled, on every run, makes
+               that feature everyone's problem.
     """
     findings = [
         {k: (scrub(v) if isinstance(v, str) else v) for k, v in f.items()}
@@ -55,6 +60,7 @@ def render(data, *, title="Agent mesh", heading=None, subtitle=DEFAULT_SUBTITLE,
             .replace("__DATA__", json.dumps(data, ensure_ascii=False) if data else "null")
             .replace("__FEED__", json.dumps(feed) if feed else "null")
             .replace("__FINDINGS__", json.dumps(findings, ensure_ascii=False))
+            .replace("__SUMMARYNOTE__", json.dumps(summary_note) if summary_note else "null")
             .replace("__POLL__", str(int(poll_ms)))
             .replace("__SILENCE__", str(int(silence_s)))
             .replace("__TITLE__", html.escape(title))

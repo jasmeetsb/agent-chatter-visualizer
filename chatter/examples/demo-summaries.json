@@ -1,0 +1,46 @@
+{
+  "_README": "Summaries of the five synthetic conversations in examples/mesh/, in the same format as the --summarize cache (sha1 of model+transcript -> entry). Shipped pre-generated so `--demo` shows the generated tier without an API key and without spending anything. Written by claude-opus-5 reading the fixture, which is the same job --summarize does; they did not come back through the API on your machine. Regenerate with: agent-chatter --demo --summarize --summary-cache chatter/examples/demo-summaries.json",
+  "3194fe0e2b17e2683016ec51348151959929db92": {
+    "summary": "alpha-prod split the migration in two — staging to beta-staging, the production runbook to itself — and beta-staging's first numbers immediately invalidated part of it. It measured 11s of lock hold on orders_items at --batch-size 5000 with no concurrent readers, against a table production reads on every checkout, and argued the staging figure does not transfer. alpha-prod accepted that and found a second error in the same breath: a 03:00 window optimises for throughput impact, which is not the constraint if the constraint is lock contention.",
+    "decisions": [
+      "Batch size drops from 5000 to 500 in the production runbook, marked REQUIRES VERIFICATION rather than adopted as measured.",
+      "The production window moves from 03:00 to 14:00 — an off-hours slot buys a smaller ops team, not a safer migration.",
+      "The batch-size figure goes into the runbook as a warning rather than a note, because raising it is the obvious optimisation and the dangerous one."
+    ],
+    "model": "claude-opus-5"
+  },
+  "cd4fc85a8b99619584f686a6503b078de08a5b74": {
+    "summary": "The staging backfill landed — 4,118,204 rows in 41 minutes, zero retries, peak lag 4s against a 30s threshold — and carried a number neither session had predicted: 62% of wall clock was the final index rebuild, not the batched writes. That decouples batch size from duration, so it governs safety and barely touches how long the run takes. gamma-canary brought the canary up on 2% of checkout traffic and claimed the abort decision for itself rather than routing it back.",
+    "decisions": [
+      "Batch size is a safety knob, not a speed knob — raising it later buys no speedup and all of the lock risk.",
+      "gamma-canary holds the abort: it stops the rollout itself if p99 moves more than 20ms, instead of waiting to be told.",
+      "Rollout cleared from 2% to 25% after p99 moved 3ms across the full window."
+    ],
+    "model": "claude-opus-5"
+  },
+  "bafac1c59f82ac0c21db15d6f213024faa03b556": {
+    "summary": "The per-table question. alpha-prod wanted to hold 500 for the second table rather than retune, on the grounds that a second guessed number is a second thing to be wrong about; beta-staging agreed and carved out one exception, since orders_archive has no foreign key, the lock argument does not apply to it, and 5000 is genuinely safe there. Separately, gamma-canary closed out the earlier 40ms p99 spike, which turned out to have nothing to do with batch size at all.",
+    "decisions": [
+      "500 everywhere except orders_archive, which stays at 5000, with the reason written beside it so nobody re-derives it at 2am.",
+      "The 40ms spike was the archive table sharing a connection pool with checkout; repointing it at the reporting pool cleared it."
+    ],
+    "model": "claude-opus-5"
+  },
+  "d714109a6d7ef17ffb66f9fb54efc2dddbd12d09": {
+    "summary": "The production run reported through to completion: 4,118,204 rows in 47 minutes, zero retries, zero rollbacks, replication lag peaking at 6s against the 30s abort threshold, and checkout p99 unchanged. beta-staging withdrew its own 40-minute estimate on the way past — the index rebuild is the floor on duration and it had been treating it as an afterthought. gamma-canary confirmed twenty clean minutes at 100% and closed the migration out.",
+    "decisions": [
+      "The migration is complete and closed out: 4,118,204 rows, 47 minutes, no retries and no rollbacks.",
+      "beta-staging withdrew its 40-minute estimate — the index rebuild sets the floor, so duration estimates have to start there."
+    ],
+    "model": "claude-opus-5"
+  },
+  "e2fafbbf9185433c593c41a7a208432e4162aaa6": {
+    "summary": "Handover traffic at the top of the production window rather than a discussion. beta-staging pasted the staging export config across — both tokens in it are redacted in this view — alpha-prod handed gamma-canary the abort on checkout p99, and the oncall asked to be paged directly rather than through the team channel. The three bare acks and the legacy-encoded message carry no content of their own, so nothing here was argued; it was assigned.",
+    "decisions": [
+      "gamma-canary has the abort on checkout p99, triggered by movement past 20ms.",
+      "An abort pages the oncall directly, not the team channel.",
+      "Both export tokens are to be rotated once the run finishes."
+    ],
+    "model": "claude-opus-5"
+  }
+}

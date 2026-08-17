@@ -132,21 +132,59 @@ talking.
 
 ### Key insights & decisions
 
-![Key insights and decisions](docs/img/insights.png)
+<img src="docs/img/insights.png" width="430" alt="Key insights and decisions, showing the curated, summary and verbatim tiers">
 
 One entry **per conversation**, not per message. Messages are grouped into
 exchanges by silence gaps, and each entry says what was discussed and what came
 out of it.
 
-Two tiers, and the difference between them is the point:
+Three tiers, and the difference between them is the point — **every entry says
+who wrote it**:
 
-| Tier | Where it comes from |
+| Tier | Who wrote it |
 |---|---|
-| **Curated** | You wrote it. A person read the exchange and judged that one mattered. |
-| **Surfaced** | *Not* a verdict from the tool. These are the sentences where a **participant marked their own conclusion** — *"I withdraw that"*, *"you were right"*, *"root cause"* — quoted verbatim, so you judge the basis instead of trusting a label. |
+| **Curated** | **A person.** You read the exchange and judged that one mattered. See [curated findings](#curated-findings). |
+| **Summary** | **A model**, and the card says which one. Opt-in via [`--summarize`](#summaries); off unless you ask and pay for it. |
+| **Discussed / Decided** | **The participants.** Their own headlines, and the sentences where one of them marked a conclusion — *"I withdraw that"*, *"you were right"*, *"root cause"* — quoted verbatim, so you judge the basis instead of trusting a label. |
 
-The tool never decides which exchange mattered. That rule is why the two tiers
-stay separate, and why only the curated one is ever saved into a published page.
+The tool never decides for itself which exchange mattered. That is why the tiers
+stay visually separate rather than blending into one confident paragraph: a
+reader has to be able to tell an observation from an assertion at a glance.
+
+### Summaries
+
+The bottom tier is free and honest but thin — six headlines are six subject
+lines, not an account of what was argued. `--summarize` has Claude write the
+account, into its own labelled block:
+
+```bash
+agent-chatter --summarize
+```
+
+It costs money and needs a key, so it is off by default. Setup is one file, in
+the directory you run from or at `~/.config/agent-chatter/.env`:
+
+```bash
+echo 'ANTHROPIC_API_KEY=sk-ant-…' > .env
+
+./agent-chatter --summarize                              # from a clone, with `anthropic` installed
+uvx --with anthropic \
+    --from git+https://github.com/jasmeetsb/agent-chatter-visualizer \
+    agent-chatter --summarize                            # without installing anything
+```
+
+Without a key the dashboard still works and says so, at the top of the panel
+rather than only in the terminal that started it:
+
+<img src="docs/img/summary-warning.png" width="420" alt="Summaries unavailable — no API key configured">
+
+Results are cached by conversation content in `~/.cache/agent-chatter/`, so
+re-running is free and only a conversation that has actually grown is paid for
+twice. A conversation still in progress is left alone until it has been quiet for
+two minutes, so a live exchange is not re-summarised on every message that lands.
+
+The bundled `--demo` ships its summaries pre-generated, so you can see the tier
+before deciding whether to configure anything.
 
 ### The messages themselves
 
@@ -201,26 +239,15 @@ ever having used it, and only a parser can tell those apart.
 
 ### Which projects it reads
 
-It scans every project under `~/.claude/projects/` for cross-session traffic —
-but **if it finds conversations in more than one project it stops and asks**,
-rather than drawing unrelated work on one page:
+It scans every project under `~/.claude/projects/` for cross-session traffic and
+loads all of it, with a **project selector in the page header** if it found more
+than one. Narrowing is a question you answer while looking at something, so it
+belongs in the page rather than in the command you had to type first. Your choice
+is remembered.
 
-```
-Found conversations in 3 projects:
-
-    40 messages   -home-you-github-api
-               --project api
-    12 messages   -home-you-github-notes
-               --project notes
-
-Pick one with --project, or merge them all with --all.
-```
-
-Two meshes on one page are not a bigger mesh — they share nothing, their
-timelines are unrelated, and the graph ends up with components that have no
-reason to be beside each other.
-
-`--project` takes whichever form you have to hand:
+Naming a project up front loads only that one, which is what you want when the
+page is going to be published or the transcripts are large. `--project` takes
+whichever form you have to hand:
 
 ```bash
 agent-chatter --project ~/work/api      # a path to the project
@@ -229,8 +256,7 @@ agent-chatter --project my-repo         # any distinctive part of the name
 ```
 
 If the fragment matches more than one project it lists them and stops rather
-than guessing, and `--all` merges everything deliberately. `--list` always shows
-which project each transcript came from.
+than guessing. `--list` always shows which project each transcript came from.
 
 Or bypass discovery entirely by naming files:
 
@@ -247,9 +273,9 @@ agent-chatter --demo             # the bundled example
 agent-chatter --build page.html  # frozen, self-contained page you can send
 agent-chatter --log notes.md     # plain markdown, for grepping and diffing
 agent-chatter --project <name>   # one project: path, folder name, or fragment
-agent-chatter --all              # merge every project onto one page
 agent-chatter --watch <dir>      # serve every transcript in a directory
 agent-chatter --findings f.json  # add your curated entries
+agent-chatter --summarize        # have Claude write the conversation summaries
 agent-chatter path/to/*.jsonl    # explicit transcripts, skipping discovery
 ```
 
@@ -342,7 +368,18 @@ data  = model.build(paths)
 
 data["events"]      # every message, both sides reconciled
 data["sessions"]    # identity, renames, ghost status
-data["exchanges"]   # conversations, with what was discussed and decided
+data["exchanges"]   # conversations, with member event ids, discussed, decided
+```
+
+Generated summaries are a separate step, so nothing in `model` ever reaches the
+network:
+
+```python
+from chatter.summarize import Summarizer
+
+s = Summarizer()                 # reads .env; s.note says why if it cannot run
+s.fill(data)                     # calls the API for anything not already cached
+s.attach(data)                   # x["ai"] = {summary, decisions, model}
 ```
 
 ---
@@ -360,6 +397,15 @@ installs instantly, runs offline, and cannot break when something upstream
 changes. The packaging metadata exists only to make it installable — a clone
 works exactly as well.
 
+[`--summarize`](#summaries) is the single exception, and it is opt-in twice over:
+you install the extra, *and* you pass the flag. Nothing else changes if you never
+do either.
+
+```bash
+uv tool install "agent-chatter-visualizer[summarize] @ git+https://github.com/jasmeetsb/agent-chatter-visualizer"
+uvx --with anthropic --from git+https://github.com/jasmeetsb/agent-chatter-visualizer agent-chatter --summarize
+```
+
 ---
 
 ## Before you publish a page
@@ -368,20 +414,28 @@ works exactly as well.
 including things that were never meant to leave the machine.
 
 Output is scrubbed before it is written: Google API keys, `ya29.` tokens, `sk-`
-and `gh*_` tokens, PEM private keys. Home directories become `~`, and so do two
-less obvious forms of the same leak — the flattened project directory name
-`-home-<user>-<project>`, and the shell prompt `user@host:~/path$` that rides
-along inside any pasted terminal output.
+keys (Anthropic and OpenAI, dashes and all), `gh*_` and `xox*` tokens, PEM
+private keys. Home directories become `~`, and so do two less obvious forms of
+the same leak — the flattened project directory name `-home-<user>-<project>`,
+and the shell prompt `user@host:~/path$` that rides along inside any pasted
+terminal output.
 
 The scrub is not a substitute for checking:
 
 ```bash
-grep -acE 'AIza[0-9A-Za-z_-]{30,}|ya29\.[0-9A-Za-z_.-]{20,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}' page.html
+grep -acE 'AIza[0-9A-Za-z_-]{30,}|ya29\.[0-9A-Za-z_.-]{20,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}' page.html
 # expect 0 — and expect a NUMBER. No output means the check did not run.
 ```
 
 Generated pages are gitignored. They are *data about a specific project* and
 belong with that project rather than with this tool.
+
+**`--summarize` sends message bodies to the Anthropic API.** They are scrubbed
+and home-redacted first — the same text the page would show — but the same
+sentence that makes this tool useful applies: a transcript contains whatever was
+pasted into that session. Everything else here runs entirely offline; that one
+flag does not. Your `.env` is gitignored, and a key that ends up quoted inside a
+transcript is redacted like any other credential.
 
 ---
 

@@ -73,6 +73,20 @@ _SLUG = re.compile(r"-(home|Users)-(?!redacted-)[^/\s\"'\\]+?-")
 _PROMPT = re.compile(r"\b([\w.-]+)@([\w.-]+):(?=[~/])")
 
 
+def leaked(val):
+    """The username-shaped thing in `val`, or None.
+
+    Module level rather than a closure inside build(), because anything that adds
+    text to the payload after build() — summarize.py is the first — has to be
+    held to the same check. This guard is only worth having if it covers every
+    route into the page, and the entire history of this bug is new routes.
+    """
+    if not isinstance(val, str):
+        return None
+    m = _HOME.search(val) or _SLUG.search(val) or _PROMPT.search(val)
+    return m.group(0) if m else None
+
+
 _PROJ_PREFIX = re.compile(r"^-(?:home|Users)-[^-]+-")
 
 
@@ -611,6 +625,11 @@ def exchanges(events):
         out.append({
             "id": evs[0]["id"],
             "who": who,
+            # Membership, so anything downstream reads the conversation the same
+            # way the page draws it. --summarize needs the bodies; regrouping
+            # them itself would be a second definition of "a conversation", and
+            # two of those drift exactly like two parsers do.
+            "events": [e["id"] for e in evs],
             "srcs": sorted({e.get("src_id") for e in evs if e.get("src_id")}),
             "start": evs[0].get("sent") or evs[0].get("enqueued") or evs[0].get("delivered"),
             "end": evs[-1].get("delivered") or evs[-1].get("sent") or evs[-1].get("enqueued"),
@@ -916,11 +935,7 @@ def build(paths):
     # session id itself when a transcript carries no identity records — after
     # `src_id` was designed specifically to prevent it. A check that can only be
     # skipped by deleting it is worth more than remembering the rule.
-    def _leak(val):
-        if not isinstance(val, str):
-            return None
-        m = _HOME.search(val) or _SLUG.search(val) or _PROMPT.search(val)
-        return m.group(0) if m else None
+    _leak = leaked
 
     for sid, meta in sessions.items():
         for field, val in (("id", sid), ("name", meta.get("name")),

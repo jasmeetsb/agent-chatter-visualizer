@@ -25,14 +25,22 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 from . import render as R
+from . import summarize as S
+
+
+def _progress(msg):
+    # flush, for the same reason the startup banner does: backgrounded with
+    # output redirected, stdout is a block-buffered pipe and nothing appears.
+    print(f"agent-chatter: {msg}", file=sys.stderr, flush=True)
 
 
 class State:
     """Holds the current snapshot. Rebuilt on a timer by one background thread;
     served to any number of clients."""
 
-    def __init__(self, paths, watch_dir, refresh):
+    def __init__(self, paths, watch_dir, refresh, summarizer=None):
         self.paths, self.watch_dir, self.refresh = paths, watch_dir, refresh
+        self.summarizer = summarizer
         self.lock = threading.Lock()
         self.data = {"events": [], "sessions": {}, "sources": [],
                      "snapshot_id": None, "seq": 0}
@@ -55,6 +63,11 @@ class State:
     def rebuild(self):
         try:
             data = self.model.build(self.sources())
+            # Cache only, so the rebuild that runs every two seconds stays free
+            # in both senses. Anything not summarised yet is picked up by the
+            # background pass below and lands on a later rebuild.
+            if self.summarizer:
+                self.summarizer.attach(data)
             with self.lock:
                 self.data, self.err = data, None
         except Exception as exc:                       # keep serving the last good snapshot
@@ -65,6 +78,27 @@ class State:
         while True:
             self.rebuild()
             time.sleep(self.refresh)
+
+    def summarize_loop(self):
+        """Generate summaries off the serving path.
+
+        Doing this inside rebuild() would hold the first snapshot back by however
+        long the API takes — the page would show "no messages yet" while the
+        transcripts sat parsed in memory. Instead the summaries land in the cache
+        and the next rebuild attaches them, so the dashboard is useful
+        immediately and gets better a few seconds later. Exchanges ride along
+        with every delta, so no snapshot bump is needed for the client to see
+        them.
+        """
+        while True:
+            try:
+                with self.lock:
+                    data = self.data
+                if data.get("exchanges"):
+                    self.summarizer.fill(data, progress=_progress)
+            except Exception as exc:
+                _progress(f"summariser: {type(exc).__name__}: {exc}")
+            time.sleep(max(self.refresh * 5, 10))
 
     def since(self, seq):
         """Events after `seq`, plus the always-current session table. seq is
@@ -134,6 +168,7 @@ def main():
     ap.add_argument("--findings", metavar="FILE",
                     help="curated findings JSON; see README. Never generated.")
     ap.add_argument("--title", default="Agent mesh")
+    S.add_arguments(ap)
     args = ap.parse_args()
 
     if not args.transcripts and not args.watch:
@@ -144,12 +179,18 @@ def main():
         with open(args.findings, encoding="utf-8") as fh:
             findings = json.load(fh)
 
-    state = State(args.transcripts, args.watch, args.refresh)
+    summarizer = S.from_args(args)
+    S.report(summarizer)
+
+    state = State(args.transcripts, args.watch, args.refresh, summarizer)
     state.rebuild()
     threading.Thread(target=state.loop, daemon=True).start()
+    if summarizer and summarizer.available:
+        threading.Thread(target=state.summarize_loop, daemon=True).start()
 
     page = R.render(None, title=args.title, feed="/feed", findings=findings,
-                    poll_ms=args.poll, silence_s=args.silence)
+                    poll_ms=args.poll, silence_s=args.silence,
+                    summary_note=S.note_for(args.summarize, summarizer))
     srv = ThreadingHTTPServer((args.host, args.port), handler_for(state, page))
     n = len(state.sources())
     # flush: when this is backgrounded with output redirected, stdout is a pipe

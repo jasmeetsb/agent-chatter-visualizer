@@ -19,6 +19,10 @@
   /* status palette is fixed, never themed, and never reused for a series */
   --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
   --ghost:#98A2AC;
+  /* surfaces for the two things that are not observation: generated prose, and
+     a warning about why it is absent. Tints rather than saturated fills — they
+     have to sit beside the quotes without outranking them. */
+  --gen-bg:#F3FAF7; --warn-bg:#FFF8E6; --warn-line:#F0DCA8;
   --shadow:0 1px 2px #0f182008, 0 4px 12px #0f182008;
 }
 @media (prefers-color-scheme:dark){
@@ -30,6 +34,7 @@
     --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
     --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
     --ghost:#5F6B78;
+    --gen-bg:#101C19; --warn-bg:#1F1A0C; --warn-line:#4A3D18;
     --shadow:0 1px 2px #0006, 0 6px 18px #0004;
   }
 }
@@ -41,6 +46,7 @@
   --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
   --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
   --ghost:#5F6B78;
+  --gen-bg:#101C19; --warn-bg:#1F1A0C; --warn-line:#4A3D18;
   --shadow:0 1px 2px #0006, 0 6px 18px #0004;
 }
 /* `hidden` is a presentation hint and loses to any rule that sets display, so a
@@ -163,6 +169,22 @@ section{margin:30px 0}
 .xlist li{margin:0 0 4px;cursor:pointer}
 .xlist li:hover{color:var(--ink)}
 .insights .none{color:var(--faint);font-size:12px}
+/* The third tier. Curated entries are a person's judgement, the quotes below are
+   a participant's own words, and this is a model's prose about both — so it is
+   drawn as something written rather than something observed: dashed, tinted, and
+   captioned with the model that wrote it. A reader has to be able to discount it
+   at a glance, and that is the only reason it is allowed on the page at all. */
+.gen{border:1px dashed var(--line);border-left:3px solid var(--s3);border-radius:4px;
+  background:var(--gen-bg);padding:9px 11px;margin:8px 0 4px}
+.gen .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;
+  color:var(--s3)}
+.gen .by{font-size:10.5px;color:var(--faint);margin-left:6px}
+.gen p{margin:4px 0 0;font-size:12.4px;line-height:1.55;color:var(--ink-2)}
+.gen ul{margin:6px 0 0;padding-left:15px;font-size:12.2px;line-height:1.5;color:var(--ink-2)}
+.gen li{margin:0 0 3px}
+.warnbox{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:4px;
+  padding:9px 11px;margin:0 0 12px;font-size:11.6px;line-height:1.5;color:var(--ink-2)}
+.warnbox b{color:var(--ink);font-weight:640}
 .topline{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:14px;
   align-items:start}
 @media (max-width:760px){.topline{grid-template-columns:minmax(0,1fr)}}
@@ -338,6 +360,9 @@ const POLL_MS = __POLL__;
    and a generator would produce confident nonsense. This is the one part of the
    page that is a human judgment, which is exactly why it is an input. */
 const FINDINGS = __FINDINGS__;
+/* Set only when --summarize was asked for and could not run. Null otherwise —
+   the page never advertises an optional feature to someone who did not ask. */
+const SUMMARY_NOTE = __SUMMARYNOTE__;
 
 /* ---------- store ---------- */
 const store = {slot:{}, slotN:0, exchanges:[], events: new Map(), sessions: {}, sources: [], snapshot: null, seq: -1,
@@ -890,6 +915,17 @@ function renderInsights(d){
     'gap in it. What was discussed comes from the headlines the senders wrote; ' +
     'what was decided is the sentence in which one of them said so.'));
 
+  /* Asked for summaries, could not produce them. Say why here rather than only
+     on the terminal that started the server: the person reading the panel is
+     often not the person who ran the command, and "the feature looks broken" is
+     the impression left by silence. */
+  if(SUMMARY_NOTE){
+    const w = el('div', 'warnbox');
+    w.appendChild(el('b', null, 'Summaries unavailable. '));
+    w.appendChild(document.createTextNode(SUMMARY_NOTE));
+    box.appendChild(w);
+  }
+
   const curated = (FINDINGS || []);
   if(curated.length){
     const h = el('div', 'ins'); h.setAttribute('data-kind', 'curated');
@@ -935,6 +971,25 @@ function renderInsights(d){
       parties.appendChild(el('span', null, name(id)));
     });
     card.appendChild(parties);
+
+    /* Generated first, because it is the readable account and the bullets below
+       are the evidence for it — but never unlabelled. `by` names the model so
+       the sentence "a model wrote this" is on screen next to the prose itself,
+       not buried in a legend somewhere. */
+    if(x.ai && x.ai.summary){
+      const g = el('div', 'gen');
+      const h = el('div');
+      h.appendChild(el('span', 'k', 'summary'));
+      h.appendChild(el('span', 'by', 'written by ' + (x.ai.model || 'a model')));
+      g.appendChild(h);
+      g.appendChild(el('p', null, x.ai.summary));
+      if(x.ai.decisions && x.ai.decisions.length){
+        const ul = el('ul');
+        x.ai.decisions.forEach(t => ul.appendChild(el('li', null, t)));
+        g.appendChild(ul);
+      }
+      card.appendChild(g);
+    }
 
     if(x.topics && x.topics.length){
       card.appendChild(el('div', 'xlab', 'Discussed'));

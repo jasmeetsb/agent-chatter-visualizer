@@ -6,6 +6,7 @@
     ./agent-chatter --demo          the bundled example, no real data touched
     ./agent-chatter --build p.html  frozen self-contained page
     ./agent-chatter --log p.md      plain markdown log
+    ./agent-chatter --summarize     have Claude write the conversation summaries
     ./agent-chatter <paths...>      explicit transcripts, skipping discovery
 
 Everything here is a thin front door onto chatter.server, chatter.page and
@@ -22,13 +23,14 @@ import glob
 import os
 import sys
 
-from . import discover, mdlog, page, server
+from . import discover, mdlog, page, server, summarize
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # The demo fixture ships inside the package, so it is found whether this was
 # cloned or installed into a virtualenv by uv/pip.
 DEMO = sorted(glob.glob(os.path.join(HERE, "examples", "mesh", "*.jsonl")))
 SAMPLE_FINDINGS = os.path.join(HERE, "examples", "sample-findings.json")
+DEMO_SUMMARIES = os.path.join(HERE, "examples", "demo-summaries.json")
 
 
 def _shortest_unique(project, others):
@@ -74,6 +76,13 @@ def resolve(args):
         if not args.findings:
             if os.path.exists(SAMPLE_FINDINGS):
                 args.findings = SAMPLE_FINDINGS
+        # Same argument for the summaries. The demo exists to show what the
+        # dashboard looks like when it is set up, and a tier that is missing
+        # unless you have an API key is a tier nobody evaluating this will see.
+        # Shipped pre-generated, so --demo still costs nothing and works offline.
+        if not args.summary_cache and not args.summarize:
+            if os.path.exists(DEMO_SUMMARIES):
+                args.summary_cache = DEMO_SUMMARIES
         return DEMO, "the bundled example"
     try:
         rows = discover.find(project=args.project)
@@ -124,6 +133,7 @@ def main():
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--title")
     ap.add_argument("--findings", metavar="FILE")
+    summarize.add_arguments(ap)
     args, extra = ap.parse_known_args()
 
     if args.list:
@@ -152,6 +162,13 @@ def main():
             argv += ["--title", args.title]
         if args.findings and mod is not mdlog:
             argv += ["--findings", args.findings]
+        # The markdown log has nowhere to put generated prose without blurring it
+        # into the quotes around it, and the whole point of the tier is that it
+        # is visibly separate. Same reason curated findings are excluded.
+        if args.summarize and mod is not mdlog:
+            argv += ["--summarize", "--summarize-model", args.summarize_model]
+        if args.summary_cache and mod is not mdlog:
+            argv += ["--summary-cache", args.summary_cache]
         argv += extra
         saved = sys.argv
         sys.argv = [mod.__name__] + argv

@@ -23,6 +23,14 @@ classifiers = [
 # changes. The only reason this file exists is to make it installable.
 dependencies = []
 
+# --summarize is the one feature that talks to a network, and it is opt-in twice
+# over: you install the extra, and you pass the flag. Everything else keeps
+# working with neither, which is why this is an extra and not a dependency.
+#   uv tool install "agent-chatter-visualizer[summarize]"
+#   uvx --with anthropic agent-chatter --summarize
+[project.optional-dependencies]
+summarize = ["anthropic>=0.40"]
+
 [project.urls]
 Homepage = "https://github.com/jasmeetsb/agent-chatter-visualizer"
 Issues = "https://github.com/jasmeetsb/agent-chatter-visualizer/issues"
