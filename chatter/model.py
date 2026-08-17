@@ -196,7 +196,12 @@ def preview(summary, body, limit=120):
         if len(line) < 3:
             continue
         return line if len(line) <= limit else line[:limit - 1].rstrip() + "…"
-    return ""
+    # Nothing survived the tidy-up — which happens for a message that IS shorter
+    # than the threshold, "Hi" being the obvious case. Falling through to an empty
+    # headline made a real message render as "(no summary)", so the last resort is
+    # the body itself: short is not the same as absent.
+    flat = re.sub(r"\s+", " ", (body or "")).strip()
+    return flat[:limit]
 
 
 
