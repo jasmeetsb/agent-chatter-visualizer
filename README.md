@@ -161,8 +161,15 @@ account, into its own labelled block:
 agent-chatter --summarize
 ```
 
-It costs money and needs a key, so it is off by default. Setup is one file, in
-the directory you run from or at `~/.config/agent-chatter/.env`:
+> [!WARNING]
+> **This costs money, billed to your key.** It sends your message bodies to the
+> Anthropic API — one request per conversation, every conversation it has not
+> already summarised. On a project with months of history that is not a small
+> number, so it is off by default and capped when you do turn it on. Everything
+> else in this tool runs offline and costs nothing.
+
+Setup is one file, in the directory you run from or at
+`~/.config/agent-chatter/.env`:
 
 ```bash
 echo 'ANTHROPIC_API_KEY=sk-ant-…' > .env
@@ -187,13 +194,30 @@ is often not the person who ran the command:
 | `--summarize` with a key | nothing; the summaries are right there |
 | `--demo` | that the demo's summaries ship pre-generated |
 
-Results are cached by conversation content in `~/.cache/agent-chatter/`, so
-re-running is free and only a conversation that has actually grown is paid for
-twice. A conversation still in progress is left alone until it has been quiet for
-two minutes, so a live exchange is not re-summarised on every message that lands.
+#### What it will spend
+
+Four things keep a run bounded, and it tells you the estimate before it starts:
+
+```
+agent-chatter: summarising 7 conversation(s) with claude-opus-5 —
+               ~14,000 input tokens, roughly $0.07 plus output
+```
+
+| Cap | Default | Why |
+|---|---|---|
+| `--summarize-limit N` | 20 conversations per run, newest first | A long-running project has months of them; the recent ones are what you are looking at. `0` for all. |
+| `--summarize-chars N` | 12,000 characters per conversation | Over this, the **middle** is dropped and the gap marked — the opening says what the exchange was about and the closing says how it resolved. `0` for no limit. |
+| cache | on | Keyed by conversation content in `~/.cache/agent-chatter/`. Re-running is free; only a conversation that actually grew is paid for twice. |
+| settle window | 2 minutes | A conversation still in progress is left alone, so a live exchange is not re-summarised on every message that lands. |
+
+Measured on a real project: seven conversations came to 147,000 characters, one
+of them 52,000 on its own. The per-conversation cap took that to 57,000 — the
+same summaries for about a third of the input. Whatever a cap leaves out is
+reported, on the terminal and in the panel; the tool never quietly decides some
+conversations were not worth summarising.
 
 The bundled `--demo` ships its summaries pre-generated, so you can see the tier
-before deciding whether to configure anything.
+before spending anything at all.
 
 ### The messages themselves
 
@@ -284,7 +308,7 @@ agent-chatter --log notes.md     # plain markdown, for grepping and diffing
 agent-chatter --project <name>   # one project: path, folder name, or fragment
 agent-chatter --watch <dir>      # serve every transcript in a directory
 agent-chatter --findings f.json  # add your curated entries
-agent-chatter --summarize        # have Claude write the conversation summaries
+agent-chatter --summarize        # have Claude write the summaries (costs money)
 agent-chatter --title "Q3 migration"   # heading and browser tab
 agent-chatter path/to/*.jsonl    # explicit transcripts, skipping discovery
 ```
@@ -445,12 +469,14 @@ grep -acE 'AIza[0-9A-Za-z_-]{30,}|ya29\.[0-9A-Za-z_.-]{20,}|sk-[A-Za-z0-9_-]{20,
 Generated pages are gitignored. They are *data about a specific project* and
 belong with that project rather than with this tool.
 
-**`--summarize` sends message bodies to the Anthropic API.** They are scrubbed
-and home-redacted first — the same text the page would show — but the same
-sentence that makes this tool useful applies: a transcript contains whatever was
-pasted into that session. Everything else here runs entirely offline; that one
-flag does not. Your `.env` is gitignored, and a key that ends up quoted inside a
-transcript is redacted like any other credential.
+**`--summarize` sends message bodies to the Anthropic API, and bills your key.**
+They are scrubbed and home-redacted first — the same text the page would show —
+but the sentence that makes this tool useful applies here too: a transcript
+contains whatever was pasted into that session, and `--summarize` is the one
+thing here that takes any of it off the machine. Everything else runs entirely
+offline. See [what it will spend](#what-it-will-spend) for the caps. Your `.env`
+is gitignored, and a key quoted inside a transcript is redacted like any other
+credential.
 
 ---
 

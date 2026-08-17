@@ -68,6 +68,13 @@ a summary reach the page without `--summarize` breaks the only thing that makes
 the middle tier safe to show. It is also the only network call in the repo: keep
 it behind the flag, keep the import lazy, and keep every other path offline.
 
+**A cap is never silent.** `--summarize` spends the user's money, so it is capped
+per run and per conversation — and every cap reports what it left out, on the
+terminal and in the panel. An unreported limit is indistinguishable from the tool
+deciding those conversations were not worth summarising, which is the judgement
+it is not allowed to make. Same reason the estimate prints before the spend
+rather than after.
+
 **Alerts are structural only.** Silence, no reply, no delivery confirmation.
 Never keyword-based: a pattern like `wrong|corrected|refuted` fires on every
 message of a healthy design argument. Alerts are ephemeral and must never be

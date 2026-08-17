@@ -52,6 +52,25 @@ EFFORT = "low"
 # the cost of summarising the exchange it appeared in.
 BODY_CHARS = 4000
 
+# Bound the whole conversation. Measured on a real project: seven conversations
+# came to 147,000 characters, one of them 52,000 on its own — so without this the
+# bill is set by whichever session pasted the most, which is nobody's intent.
+# When a conversation is over budget the MIDDLE is dropped, not the tail: the
+# opening frames what the exchange is about and the closing carries how it
+# resolved, and those are the two things a summary is made of.
+CONV_CHARS = 12000
+
+# Bound how many conversations one run pays for, newest first. A long-running
+# project has months of them and the recent ones are what anyone is looking at.
+# 0 means no limit, for someone who has decided otherwise.
+MAX_CONVERSATIONS = 20
+
+# Rough cost per 1M input tokens, only for the estimate printed before spending.
+# Deliberately approximate and deliberately stated as such: a precise-looking
+# number that is quietly stale is worse than an honest order of magnitude.
+USD_PER_MTOK_IN = 5.0
+CHARS_PER_TOKEN = 4
+
 # Leave a conversation alone until it has been quiet this long. Without it, a
 # live exchange is re-summarised on every message that lands — each one changes
 # the text, so each one misses the cache and bills again.
@@ -119,6 +138,11 @@ OFF_HAVE_KEY_NOTE = (
 
 # The demo, which ships its summaries so the tier is visible without a key. Say
 # so, or the one page most people see first quietly implies it came free.
+CAPPED_NOTE = (
+    "The {n} oldest conversation(s) were not summarised — one run summarises the "
+    "{limit} most recent, so a long history does not become one large bill. "
+    "Raise it with --summarize-limit, or pass 0 for all of them.")
+
 SHIPPED_NOTE = (
     "These summaries ship with the demo, already generated. On your own "
     "transcripts --summarize writes them, which needs an ANTHROPIC_API_KEY in a "
@@ -230,13 +254,19 @@ def _name(sessions, sid):
     return meta.get("name") or (sid or "?")[:12]
 
 
-def transcript(exchange, events_by_id, sessions):
-    """The conversation as plain text, in order.
+def transcript(exchange, events_by_id, sessions, budget=CONV_CHARS):
+    """The conversation as plain text, in order, within `budget` characters.
 
     Bodies come from the built payload, so they have already been through
     scrub() and unhome(). Nothing unredacted leaves this machine.
+
+    Over budget, messages are dropped from the MIDDLE outwards and the gap is
+    marked, so the model is told what it is not being shown rather than being
+    handed a truncated exchange that reads complete. Keeping the head and the
+    tail keeps the two parts a summary is actually made of: what this was about,
+    and how it came out.
     """
-    lines = []
+    blocks = []
     for eid in exchange.get("events") or []:
         ev = events_by_id.get(eid)
         if not ev:
@@ -245,12 +275,37 @@ def transcript(exchange, events_by_id, sessions):
         if not body:
             continue
         if len(body) > BODY_CHARS:
-            body = body[:BODY_CHARS] + " …[truncated]"
+            body = body[:BODY_CHARS] + " …[message truncated]"
         when = (ev.get("sent") or ev.get("enqueued") or ev.get("delivered") or "")
-        lines.append("[%s] %s → %s:\n%s" % (
+        blocks.append("[%s] %s → %s:\n%s" % (
             when, _name(sessions, ev.get("from_id")),
             _name(sessions, ev.get("to_id")), body))
-    return "\n\n".join(lines)
+
+    if not budget or sum(len(b) + 2 for b in blocks) <= budget:
+        return "\n\n".join(blocks)
+
+    # Take from both ends until the budget is gone. Head first on each round, so
+    # a budget that fits only one message keeps the one that says what this is.
+    head, tail, used = [], [], 0
+    lo, hi = 0, len(blocks) - 1
+    take_head = True
+    while lo <= hi:
+        i = lo if take_head else hi
+        cost = len(blocks[i]) + 2
+        if used + cost > budget:
+            break
+        (head if take_head else tail).append(blocks[i])
+        used += cost
+        if take_head:
+            lo += 1
+        else:
+            hi -= 1
+        take_head = not take_head
+    dropped = hi - lo + 1
+    if dropped <= 0:
+        return "\n\n".join(head + list(reversed(tail)))
+    gap = f"[… {dropped} message(s) omitted from the middle of this conversation …]"
+    return "\n\n".join(head + [gap] + list(reversed(tail)))
 
 
 def _key(model, text):
@@ -271,10 +326,14 @@ class Summarizer:
     attach() publish the results; the page builder runs both and waits.
     """
 
-    def __init__(self, model=MODEL, cache=None, settle_s=SETTLE_S, generate=True):
+    def __init__(self, model=MODEL, cache=None, settle_s=SETTLE_S, generate=True,
+                 limit=MAX_CONVERSATIONS, conv_chars=CONV_CHARS):
         self.model = model
         self.cache = cache if cache is not None else Cache()
         self.settle_s = settle_s
+        self.limit = limit
+        self.conv_chars = conv_chars
+        self.skipped = 0            # over the limit, so never sent; reported
         self.key, self.key_from = resolve_key()
         self.client = None
         self.note = None            # what to tell the reader, or None
@@ -306,7 +365,7 @@ class Summarizer:
         sessions = data.get("sessions") or {}
         n = 0
         for x in data.get("exchanges") or []:
-            text = transcript(x, events_by_id, sessions)
+            text = transcript(x, events_by_id, sessions, self.conv_chars)
             if not text:
                 continue
             hit = self.cache.get(_key(self.model, text))
@@ -316,20 +375,38 @@ class Summarizer:
         return n
 
     def pending(self, data):
-        """(exchange, text) for conversations with no cached summary yet."""
+        """(exchange, text) for conversations with no cached summary yet.
+
+        Newest first, and capped at `self.limit`. `exchanges` already arrives
+        newest-first, so the cap keeps the recent end — which is what anyone
+        looking at a dashboard is looking at. Whatever the cap dropped is counted
+        into self.skipped rather than vanishing: a limit nobody is told about
+        reads as the tool having decided those conversations did not matter.
+        """
         events_by_id = {e["id"]: e for e in data.get("events") or []}
         sessions = data.get("sessions") or {}
         now = _now()
         out = []
+        self.skipped = 0
         for x in data.get("exchanges") or []:
             end = _epoch(x.get("end"))
             if end is not None and now - end < self.settle_s:
                 continue        # still talking; summarising now buys a stale
                                 # answer and pays for it again on the next message
-            text = transcript(x, events_by_id, sessions)
-            if text and not self.cache.get(_key(self.model, text)):
-                out.append((x, text))
+            text = transcript(x, events_by_id, sessions, self.conv_chars)
+            if not text or self.cache.get(_key(self.model, text)):
+                continue
+            if self.limit and len(out) >= self.limit:
+                self.skipped += 1
+                continue
+            out.append((x, text))
         return out
+
+    def estimate(self, todo):
+        """Roughly what `todo` will cost, for saying so before spending it."""
+        chars = sum(len(t) for _, t in todo)
+        tokens = chars // CHARS_PER_TOKEN
+        return chars, tokens, tokens / 1_000_000 * USD_PER_MTOK_IN
 
     # ---- writing ---------------------------------------------------------
 
@@ -341,7 +418,12 @@ class Summarizer:
         if not todo:
             return 0, 0
         if progress:
-            progress(f"summarising {len(todo)} conversation(s) with {self.model}…")
+            chars, tokens, usd = self.estimate(todo)
+            progress(f"summarising {len(todo)} conversation(s) with {self.model} — "
+                     f"~{tokens:,} input tokens, roughly ${usd:.2f} plus output")
+            if self.skipped:
+                progress(f"  {self.skipped} older conversation(s) not summarised "
+                         f"(--summarize-limit {self.limit}); raise it or pass 0 for all")
 
         done = failed = 0
         results = {}
@@ -435,7 +517,13 @@ def note_for(asked, summarizer=None, any_summaries=False):
     already showing the thing this would be telling them about.
     """
     if summarizer is not None and summarizer.available:
-        return None                        # generating; nothing to explain
+        # Generating. Silent unless the cap left something out — a limit nobody
+        # is told about reads as the tool having judged those conversations not
+        # worth summarising, which is the one thing it must never appear to do.
+        if summarizer.skipped:
+            return {"level": "info", "text": CAPPED_NOTE.format(
+                n=summarizer.skipped, limit=summarizer.limit)}
+        return None
     if any_summaries:
         # Summaries on the page but nothing new will be added — the shipped demo
         # cache, or a cache someone handed over.
@@ -452,10 +540,20 @@ def add_arguments(ap):
     """The two flags, defined once so every front end spells them the same."""
     ap.add_argument("--summarize", action="store_true",
                     help="have Claude write a summary of each conversation. "
-                         "Needs ANTHROPIC_API_KEY in a .env file; costs money; "
-                         "generated text is labelled as such in the page.")
+                         "SENDS YOUR MESSAGE BODIES TO THE ANTHROPIC API AND "
+                         "COSTS MONEY, billed to your key, once per conversation "
+                         "— see --summarize-limit and --summarize-chars for the "
+                         "caps. Needs ANTHROPIC_API_KEY in a .env file.")
     ap.add_argument("--summarize-model", default=MODEL, metavar="ID",
                     help=f"model for --summarize (default {MODEL})")
+    ap.add_argument("--summarize-limit", type=int, default=MAX_CONVERSATIONS,
+                    metavar="N",
+                    help=f"summarise at most N conversations per run, newest "
+                         f"first (default {MAX_CONVERSATIONS}, 0 for no limit)")
+    ap.add_argument("--summarize-chars", type=int, default=CONV_CHARS, metavar="N",
+                    help=f"characters sent per conversation; over this, the "
+                         f"middle is dropped and the gap marked (default "
+                         f"{CONV_CHARS}, 0 for no limit)")
     ap.add_argument("--summary-cache", metavar="FILE",
                     help="where generated summaries are kept (default "
                          "~/.cache/agent-chatter/summaries.json). Given without "
@@ -470,8 +568,11 @@ def from_args(args):
     path = getattr(args, "summary_cache", None)
     if not gen and not path:
         return None
+    limit = getattr(args, "summarize_limit", MAX_CONVERSATIONS)
     return Summarizer(model=getattr(args, "summarize_model", None) or MODEL,
-                      cache=Cache(path) if path else None, generate=gen)
+                      cache=Cache(path) if path else None, generate=gen,
+                      limit=MAX_CONVERSATIONS if limit is None else limit,
+                      conv_chars=getattr(args, "summarize_chars", CONV_CHARS))
 
 
 def report(summarizer, stream=sys.stderr):

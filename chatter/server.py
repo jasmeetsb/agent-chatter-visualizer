@@ -195,6 +195,12 @@ def main():
     # loaded rather than what was asked for on the command line.
     title = args.title or state.data.get("title_hint") or R.DEFAULT_TITLE
     got = any(x.get("ai") for x in state.data.get("exchanges") or [])
+    if summarizer and summarizer.available:
+        # Prime summarizer.skipped so the page can say what the cap left out. The
+        # page is rendered once, at startup, and generation happens later on the
+        # background thread — without this the note would always report zero.
+        # Costs nothing: pending() only builds strings and reads the cache.
+        summarizer.pending(state.data)
     page = R.render(None, title=title, feed="/feed", findings=findings,
                     poll_ms=args.poll, silence_s=args.silence,
                     summary_note=S.note_for(args.summarize, summarizer, got))

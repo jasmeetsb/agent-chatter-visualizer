@@ -166,7 +166,9 @@ def main():
         # into the quotes around it, and the whole point of the tier is that it
         # is visibly separate. Same reason curated findings are excluded.
         if args.summarize and mod is not mdlog:
-            argv += ["--summarize", "--summarize-model", args.summarize_model]
+            argv += ["--summarize", "--summarize-model", args.summarize_model,
+                     "--summarize-limit", str(args.summarize_limit),
+                     "--summarize-chars", str(args.summarize_chars)]
         if args.summary_cache and mod is not mdlog:
             argv += ["--summary-cache", args.summary_cache]
         argv += extra
