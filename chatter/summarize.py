@@ -403,11 +403,19 @@ class Summarizer:
         out = []
         self.skipped = 0
         room = (self.limit - self.generated) if self.limit else None
+        # The settle window is for UNATTENDED generation only. Its job is to stop
+        # the background loop paying for a conversation twice because a message
+        # landed mid-run — nobody asked for that summary, so waiting costs
+        # nothing. A button press is somebody asking, and holding their request
+        # for two minutes without saying so is how the button came to vanish
+        # entirely on a machine whose sessions were still talking: every
+        # conversation was inside the window, pending fell to zero, and the panel
+        # offered nothing while claiming nothing had been summarised.
+        settle = self.settle_s if self.auto else 0
         for x in data.get("exchanges") or []:
             end = _epoch(x.get("end"))
-            if end is not None and now - end < self.settle_s:
-                continue        # still talking; summarising now buys a stale
-                                # answer and pays for it again on the next message
+            if settle and end is not None and now - end < settle:
+                continue
             text = transcript(x, events_by_id, sessions, self.conv_chars)
             if not text or self.cache.get(_key(self.model, text)):
                 continue
