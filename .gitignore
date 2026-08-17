@@ -1,0 +1,25 @@
+# Generated output — data about a specific project, not part of the tool.
+# These embed real message content; keep them with the project they describe.
+coordination-log.md
+coordination.html
+*-coordination*.md
+*-coordination*.html
+VM-COORDINATION-LOG.md
+findings.json
+
+__pycache__/
+*.pyc
+
+# Examples ARE committed — they are the reference for what the output looks like
+# and the fixture the tools are tested against. The exclusions above are for real
+# project output, which belongs with its project.
+!examples/
+!examples/*
+
+# Screenshots of rendered output. Same rule as the generated pages above:
+# they are data about a specific run, not part of the tool.
+screenshots/
+*.png
+# ...except the documentation images, which are generated from the SYNTHETIC
+# fixture and contain no real session content.
+!docs/img/*.png

@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "caught",
+    "who": "VM2",
+    "msg": 2,
+    "title": "The staging batch size would not have been safe in production",
+    "body": "The production runbook was about to copy --batch-size 5000 straight from staging. The staging replica has no concurrent readers, so an 11-second row lock cost nothing there; production reads the same table on every checkout. Caught before the runbook was written, not after the migration ran."
+  },
+  {
+    "kind": "reversed",
+    "who": "VM1",
+    "msg": 3,
+    "title": "The low-traffic window was solving the wrong problem",
+    "body": "The original plan ran the backfill at 03:00 to minimise impact. Once the constraint was understood to be lock contention rather than throughput, a small overnight team with a guessed batch size was clearly worse than a full daytime team with a measured one. Plan changed to a daylight run."
+  },
+  {
+    "kind": "method",
+    "who": "VM2",
+    "msg": 4,
+    "title": "62% of the duration is the index rebuild, not the writes",
+    "body": "Measured rather than assumed, and it inverts the obvious optimisation: raising the batch size barely changes total duration but increases lock hold against live readers linearly. Recorded in the runbook as a warning, because the intuitive tuning move is the dangerous one."
+  },
+  {
+    "kind": "saved",
+    "who": "VM2",
+    "msg": 6,
+    "title": "500 holds, 1000 is already visible to users",
+    "body": "Verified against mirrored production traffic instead of carried over from staging: batch size 500 moves p99 checkout latency by 3ms, 1000 moves it by 40ms. The safe margin is narrower than anyone guessed, which is worth knowing before someone rounds the number up."
+  }
+]

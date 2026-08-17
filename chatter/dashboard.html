@@ -1,0 +1,1348 @@
+<title>__TITLE__</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Three theme states, not two: an explicit choice stamps data-theme on the root;
+   the default "system" setting stamps nothing, so most viewers hit the un-stamped
+   document where only prefers-color-scheme decides. Every token is defined on bare
+   :root and redefined in BOTH blocks below. A colour whose only definition sits in
+   a media block renders one theme's text on the other theme's ground. */
+:root{
+  --ground:#F6F7F9; --surface:#FFFFFF; --raised:#FBFCFD; --sunken:#F1F3F6;
+  --ink:#111820; --ink-2:#3D4956; --muted:#69747F; --faint:#98A2AC;
+  --line:#E2E7EC; --line-2:#EDF1F4;
+  /* categorical slots 1-3, validated all-pairs in both modes (see dataviz
+     references/palette.md). Beyond 3 the all-pairs guarantee lapses, which is why
+     every session is ALSO direct-labelled everywhere it appears — identity is
+     never colour-alone. */
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  /* status palette is fixed, never themed, and never reused for a series */
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --ghost:#98A2AC;
+  --shadow:0 1px 2px #0f182008, 0 4px 12px #0f182008;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0B0F14; --surface:#121820; --raised:#161D26; --sunken:#0E141B;
+    --ink:#E7EDF3; --ink-2:#B6C2CE; --muted:#8A96A3; --faint:#5F6B78;
+    --line:#212B36; --line-2:#1A222B;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --ghost:#5F6B78;
+    --shadow:0 1px 2px #0006, 0 6px 18px #0004;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0B0F14; --surface:#121820; --raised:#161D26; --sunken:#0E141B;
+  --ink:#E7EDF3; --ink-2:#B6C2CE; --muted:#8A96A3; --faint:#5F6B78;
+  --line:#212B36; --line-2:#1A222B;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --ghost:#5F6B78;
+  --shadow:0 1px 2px #0006, 0 6px 18px #0004;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+h1{margin:0;font-size:27px;line-height:1.12;letter-spacing:-.021em;font-weight:680;text-wrap:balance}
+h2{margin:0;font-size:12.5px;letter-spacing:.085em;text-transform:uppercase;font-weight:660;color:var(--ink-2)}
+
+header{border-bottom:1px solid var(--line);background:var(--surface)}
+.mast{padding:28px 0 22px;display:flex;flex-wrap:wrap;gap:22px;align-items:flex-end;justify-content:space-between}
+.sub{margin:8px 0 0;color:var(--muted);max-width:64ch;font-size:14px}
+.livebox{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}
+.theme{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;
+  background:var(--surface);color:var(--muted);font:inherit;font-size:11.5px;padding:5px 11px;
+  cursor:pointer;white-space:nowrap}
+.theme:hover{color:var(--ink);border-color:var(--muted)}
+.theme:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.pulse.stale{background:var(--warning)} .pulse.off{background:var(--faint)}
+@keyframes beat{0%,100%{opacity:1}50%{opacity:.35}}
+.pulse.on{animation:beat 2s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.pulse.on{animation:none}}
+
+section{margin:30px 0}
+.head{display:flex;align-items:baseline;gap:12px;margin:0 0 12px}
+.head p{margin:0;color:var(--faint);font-size:12.5px}
+
+/* ---- stat tiles ---- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:11px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:13px 15px;box-shadow:var(--shadow)}
+.tile .k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font-size:25px;font-weight:660;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+.tile .n{font-size:11.5px;color:var(--faint);margin-top:2px}
+.tile[data-state="critical"] .v{color:var(--critical)}
+.tile[data-state="warning"] .v{color:var(--serious)}
+
+/* ---- attention ---- */
+.alerts{display:flex;flex-direction:column;gap:8px;padding:0;margin:0;list-style:none}
+.alert{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--bar);
+  border-radius:4px;padding:10px 14px;display:flex;gap:11px;align-items:baseline;flex-wrap:wrap}
+.alert[data-sev="critical"]{--bar:var(--critical)}
+.alert[data-sev="serious"]{--bar:var(--serious)}
+.alert[data-sev="warning"]{--bar:var(--warning)}
+.alert .ico{font-weight:700;color:var(--bar);flex:none;font-size:12px}
+.alert .what{flex:1;min-width:240px;font-size:13.5px}
+.alert .when{font-size:11.5px;color:var(--faint);white-space:nowrap}
+.calm{color:var(--faint);font-size:13.5px;padding:14px 0}
+
+/* ---- findings (curated, never generated) ---- */
+.finds{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;
+  padding:0;margin:0;list-style:none}
+.find{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:15px 16px;
+  display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow);border-left:3px solid var(--bar)}
+.find-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.kind{font-size:10.5px;letter-spacing:.075em;text-transform:uppercase;font-weight:680;
+  padding:2.5px 7px;border-radius:2.5px;background:var(--line-2);color:var(--ink-2)}
+.find[data-kind="reversed"] .kind{background:#d03b3b1f;color:var(--critical)}
+.find[data-kind="saved"] .kind{background:#0ca30c1f;color:var(--good)}
+.by{font-size:11.5px;color:var(--faint)}
+.find h3{margin:0;font-size:15px;line-height:1.34;font-weight:640;letter-spacing:-.008em;
+  text-wrap:balance}
+.find p{margin:0;font-size:13.2px;line-height:1.56;color:var(--ink-2)}
+.jump{align-self:flex-start;margin-top:2px;font-size:11.5px;color:var(--muted);background:none;
+  border:0;padding:4px 0;cursor:pointer;border-bottom:1px solid var(--line);font-family:inherit}
+.jump:hover{color:var(--ink)}
+.jump:focus-visible{outline:2px solid var(--s1);outline-offset:3px}
+.jump[disabled]{cursor:default;color:var(--faint);border-bottom-style:dotted}
+.msg.hit{animation:flash 1.6s ease-out}
+@keyframes flash{0%,22%{background:var(--sunken)}100%{background:var(--surface)}}
+@media (prefers-reduced-motion:reduce){.msg.hit{animation:none;outline:2px solid var(--s1)}}
+
+/* ---- charts ---- */
+/* min() so the floor collapses on a narrow viewport. A bare minmax(430px,1fr)
+   cannot go under 430 and pushes the body into horizontal scroll on a phone. */
+/* align-items:start so a panel hugs its content. Grid rows otherwise stretch
+   every card to the tallest in the row: measured 132px of dead white under the
+   swimlanes and 71px under queue dwell, because those charts are shorter than
+   the mesh beside them. */
+.withside{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,330px);gap:14px;
+  align-items:start}
+@media (max-width:980px){.withside{grid-template-columns:minmax(0,1fr)}}
+.insights{position:sticky;top:14px;background:var(--surface);border:1px solid var(--line);
+  border-radius:5px;padding:14px 15px;box-shadow:var(--shadow);max-height:calc(100vh - 40px);
+  overflow:auto}
+.insights h3{margin:0 0 3px;font-size:13.5px;font-weight:640}
+.insights .why{margin:0 0 12px;font-size:11.5px;color:var(--faint);line-height:1.45}
+.ins{border-left:3px solid var(--bar);padding:8px 0 8px 11px;margin:0 0 11px;cursor:pointer}
+.ins:hover .q{color:var(--ink)}
+.ins[data-kind="reversed"]{--bar:var(--critical)}
+.ins[data-kind="decided"]{--bar:var(--good)}
+.ins[data-kind="found"]{--bar:var(--s1)}
+.ins[data-kind="curated"]{--bar:var(--ink)}
+.ins .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--bar)}
+.ins .who{font-size:10.5px;color:var(--faint);margin-left:6px}
+.ins .q{margin:3px 0 0;font-size:12.3px;line-height:1.5;color:var(--ink-2)}
+.ins .t{font-size:10.5px;color:var(--faint);margin-top:3px}
+.xch{border-top:1px solid var(--line-2);padding:12px 0 4px;margin:0}
+.xch:first-of-type{border-top:0}
+.xh{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.xt{font-size:12px;font-weight:640;color:var(--ink)}
+.xn{font-size:10.5px;color:var(--faint);white-space:nowrap}
+.xw{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:4px 0 8px;
+  font-size:11px;color:var(--muted)}
+.xsep{color:var(--faint)}
+.xlab{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;
+  color:var(--faint);margin:8px 0 4px}
+.xlist{margin:0;padding-left:15px;font-size:12.2px;line-height:1.5;color:var(--ink-2)}
+.xlist li{margin:0 0 4px;cursor:pointer}
+.xlist li:hover{color:var(--ink)}
+.insights .none{color:var(--faint);font-size:12px}
+.topline{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:14px;
+  align-items:start}
+@media (max-width:760px){.topline{grid-template-columns:minmax(0,1fr)}}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(430px,100%),1fr));
+  gap:14px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:15px 16px 12px;
+  box-shadow:var(--shadow);min-width:0}
+.panel h3{margin:0 0 2px;font-size:13.5px;font-weight:640;letter-spacing:-.005em}
+.panel .why{margin:0 0 12px;font-size:11.5px;color:var(--faint);line-height:1.45}
+.scroll{overflow-x:auto}
+.more{display:block;width:100%;margin-top:8px;padding:10px;border:1px dashed var(--line);
+  border-radius:5px;background:var(--surface);color:var(--muted);font:inherit;font-size:12.5px;
+  cursor:pointer}
+.more:hover{color:var(--ink);border-color:var(--muted)}
+.more:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+/* viewBox + width:100% + height:auto keeps the aspect ratio when the panel is
+   narrower than the drawing. Setting a width attribute alongside max-width
+   squashes it instead. */
+svg{display:block;width:100%;height:auto}
+.axis{stroke:var(--line);stroke-width:1}
+.gridline{stroke:var(--line-2);stroke-width:1}
+text{font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:var(--muted)}
+text.edgelab{paint-order:stroke;stroke:var(--surface);stroke-width:3px;
+  stroke-linejoin:round;font-weight:600}
+text.lane{font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;fill:var(--ink-2)}
+text.nodecount{font:11.5px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-weight:700;letter-spacing:-.01em}
+text.nodelab{font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  fill:var(--ink);font-weight:600;paint-order:stroke;stroke:var(--surface);stroke-width:3px;
+  stroke-linejoin:round}
+
+.legend{display:flex;gap:13px;flex-wrap:wrap;margin-top:11px;font-size:11.5px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:2px;flex:none}
+.sw.round{border-radius:50%}
+.sw.hollow{background:none!important;border:2px solid var(--muted)}
+
+/* ---- controls + stream ---- */
+/* Not sticky any more. Sticky earned its place when the stream was the last
+   section and ~2500px tall; with the stream moved to the top and capped at 5
+   rows it has nothing to stay above, and it detaches from its own section. */
+.controls{background:var(--ground);border-bottom:1px solid var(--line);
+  padding:11px 0;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:11px;
+  padding:4px 11px;font-size:11.5px;cursor:pointer;font-family:ui-monospace,monospace}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
+.chip:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+input[type=search]{flex:1;min-width:170px;border:1px solid var(--line);border-radius:3px;padding:7px 11px;
+  background:var(--surface);color:var(--ink);font:inherit;font-size:13px}
+input[type=search]:focus{outline:2px solid var(--s1);outline-offset:-1px}
+.count{font-size:12px;color:var(--faint);white-space:nowrap}
+
+.stream{display:flex;flex-direction:column;gap:9px;padding:16px 0 60px}
+.msg{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--bar);border-radius:4px;
+  overflow:hidden;scroll-margin-top:64px}
+.msg .top{color:inherit;display:flex;gap:10px;align-items:center;padding:10px 14px;cursor:pointer;width:100%;border:0;
+  background:none;text-align:left;font:inherit;flex-wrap:wrap}
+.msg .top:focus-visible{outline:2px solid var(--s1);outline-offset:-2px}
+.route{font-size:12px;font-weight:640;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.route .arrow{color:var(--faint);font-weight:400}
+.summ{flex:1;min-width:180px;font-size:13.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snip{margin:0;padding:0 14px 11px 14px;color:var(--muted);font-size:12.4px;line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.msg.open .snip{display:none}
+.meta{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.pill{font-size:10px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line-2);
+  border-radius:2px;padding:1.5px 5px;color:var(--faint);font-family:ui-monospace,monospace}
+.pill.warn{color:var(--serious);border-color:var(--serious)}
+.pill.crit{color:var(--critical);border-color:var(--critical)}
+.body{display:none;border-top:1px solid var(--line-2);padding:13px 14px;background:var(--raised)}
+.msg.open .body{display:block}
+.body pre{margin:0;white-space:pre-wrap;word-break:break-word;font-size:12.5px;line-height:1.6;color:var(--ink-2);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.clocks{display:grid;grid-template-columns:auto auto 1fr;gap:3px 12px;margin-top:12px;padding-top:11px;
+  border-top:1px solid var(--line-2);font-size:11.5px}
+.clocks dt{color:var(--muted)}
+.clocks dd{margin:0;color:var(--ink-2);font-family:ui-monospace,monospace}
+.clocks dd.null{color:var(--faint);font-style:italic;font-family:inherit}
+.empty{text-align:center;color:var(--faint);padding:44px 0;font-size:14px}
+footer{border-top:1px solid var(--line);padding:18px 0 40px;color:var(--faint);font-size:12.5px}
+.tzline{margin-top:5px}
+</style>
+
+<header>
+  <div class="wrap mast">
+    <div>
+      <h1>__HEADING__</h1>
+      <p class="sub">__SUBTITLE__</p>
+    </div>
+    <div class="livebox">
+      <span class="pulse off" id="pulse"></span>
+      <span id="livetext">static snapshot</span>
+      <button id="humans" class="theme" type="button"
+        title="Show or hide the human turns; agent-to-agent traffic is always shown"></button>
+      <button id="theme" class="theme" type="button" title="Switch between automatic, light and dark"></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section><div class="tiles" id="tiles"></div></section>
+
+<section id="activity-sec">
+    <div class="head"><h2>Activity</h2><p id="activity-note"></p></div>
+    <div class="topline">
+      <div class="panel">
+          <h3>Who talks to whom</h3>
+          <p class="why">Node size is messages sent, edge width is volume, arrow is direction.
+             Dashed = no transcript held.</p>
+          <div class="scroll"><svg id="mesh" role="img" aria-label="Mesh of sessions and message volume"></svg></div>
+          <div class="legend" id="mesh-legend"></div>
+        </div>
+      <div class="panel"><div class="scroll"><svg id="activity" role="img"
+        aria-label="Messages over time, coloured by sender"></svg></div>
+        <div class="legend" id="activity-legend"></div></div>
+    </div>
+  </section>
+
+<section>
+    <div class="head"><h2>Messages</h2><p id="streamnote"></p></div>
+    <div class="controls">
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="sessionchips"></div>
+      <input type="search" id="q" placeholder="Search message text…" aria-label="Search messages">
+      <span class="count" id="count"></span>
+    </div>
+    <div class="withside">
+      <div class="stream" id="stream"></div>
+      <aside class="insights" id="insights"></aside>
+    </div>
+  </section>
+
+<section id="findings-sec">
+    <div class="head"><h2>What came out of it</h2>
+      <p>Curated by hand — heuristics can tag a message, not tell you which one mattered.</p></div>
+    <ul class="finds" id="finds"></ul>
+  </section>
+
+<section>
+    <div class="head"><h2>Timing</h2><p id="tzlabel"></p></div>
+    <div class="panels">
+      <div class="panel">
+          <h3>Delivery time</h3>
+          <p class="why">Sender's clock to the recipient consuming it, per directed pair — transport
+             plus however long it waited to be read. NOT reply latency: it is one message's
+             journey, not the gap between a question and its answer. Null where
+             we hold only one side — that gap is the delivery signal, not missing data.</p>
+          <div class="scroll"><svg id="lat" role="img" aria-label="Reply latency per pair"></svg></div>
+        </div>
+    </div>
+  </section>
+
+<section id="attention-sec">
+    <div class="head"><h2>Attention</h2>
+      <p>Structural signals only — silence, no reply, no delivery. Never lexical.</p></div>
+    <ul class="alerts" id="alerts"></ul>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div>Generated from session transcripts. Message text is scrubbed for credentials before
+  rendering, and every value below is inserted as text, never as markup.</div>
+  <div class="tzline" id="footer-tz"></div>
+</footer>
+
+<script>
+"use strict";
+const BOOT = __DATA__;
+const FEED = __FEED__;
+const POLL_MS = __POLL__;
+/* Curated findings. Supplied per project via --findings; NEVER generated. A
+   keyword tagger can label a message, it cannot tell you which exchange mattered,
+   and a generator would produce confident nonsense. This is the one part of the
+   page that is a human judgment, which is exactly why it is an input. */
+const FINDINGS = __FINDINGS__;
+
+/* ---------- store ---------- */
+const store = {slot:{}, slotN:0, exchanges:[], events: new Map(), sessions: {}, sources: [], snapshot: null, seq: -1,
+               lastPoll: null, ok: true};
+
+function ingest(payload, replace){
+  if(replace) store.events.clear();
+  (payload.events || []).forEach(e => store.events.set(e.id, e));   // upsert by id
+  store.sessions = payload.sessions || store.sessions;
+  store.sources  = payload.sources  || store.sources;
+  if(payload.exchanges) store.exchanges = payload.exchanges;
+  store.snapshot = payload.snapshot_id;
+  if(typeof payload.seq === 'number') store.seq = payload.seq;
+}
+
+/* ---------- time ----------
+   Requirement from the owner: timestamps everywhere. Three clocks exist and any
+   can be null, so a bare stamp would be a silent choice about which one. Every
+   rendered time says which clock it came from; relative labels recompute on the
+   tick rather than being baked at render. */
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+const ms = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? t : null; };
+
+const F_TIME = new Intl.DateTimeFormat(undefined,
+  {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+const F_FULL = new Intl.DateTimeFormat(undefined,
+  {year:'numeric', month:'short', day:'2-digit',
+   hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+
+function absTime(iso){ const t = ms(iso); return t===null ? '—' : F_TIME.format(t); }
+function absFull(iso){ const t = ms(iso); return t===null ? '—' : F_FULL.format(t); }
+// The date matters: the old page formatted "%H:%M" and dropped it, which is
+// wrong the moment a mesh runs past midnight.
+function absSmart(iso, spanDays){
+  const t = ms(iso); if(t===null) return '—';
+  return spanDays ? F_FULL.format(t) : F_TIME.format(t);
+}
+function relTime(iso, now){
+  const t = ms(iso); if(t===null) return '';
+  let d = Math.round((now - t)/1000);
+  const ago = d >= 0; d = Math.abs(d);
+  if(d < 45) return ago ? d + 's ago' : 'in ' + d + 's';
+  if(d < 5400) return Math.round(d/60) + 'm' + (ago ? ' ago' : '');
+  if(d < 172800) return Math.round(d/3600) + 'h' + (ago ? ' ago' : '');
+  return Math.round(d/86400) + 'd' + (ago ? ' ago' : '');
+}
+function dur(a, b){
+  const x = ms(a), y = ms(b);
+  if(x===null || y===null) return null;
+  return (y - x) / 1000;
+}
+function fmtDur(s){
+  if(s === null) return null;
+  if(s < 1) return Math.round(s*1000) + 'ms';
+  if(s < 90) return (s < 10 ? s.toFixed(2) : s.toFixed(1)) + 's';
+  if(s < 5400) return (s/60).toFixed(1) + 'm';
+  return (s/3600).toFixed(1) + 'h';
+}
+
+/* ---------- safety ----------
+   Session names, tags and bodies are all peer-controlled: a peer renames itself
+   and that string lands in graph labels, the legend, the chips and the alerts.
+   Nothing here builds markup from those values — el() sets textContent, and the
+   SVG helpers set text nodes. The model is not trusted to have sanitised. */
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if(cls) n.className = cls;
+  if(text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+/* Measure the widest label and size the gutter to it. A fixed gutter clips: pair
+   labels ("alpha-prod → beta-staging") are roughly twice the width of a single
+   session name, and a real session name is longer than a fixture one — measured
+   clipping was up to 63px before this. Falls back to a per-character estimate if
+   getBBox is unavailable (detached or display:none). */
+function gutterFor(svg, labels, cls, pad){
+  let max = 0;
+  const probe = [];
+  labels.forEach(t => {
+    const n = s('text', {x:-9999, y:-9999, class:cls}, t);
+    svg.appendChild(n); probe.push(n);
+  });
+  probe.forEach((n, i) => {
+    let w = 0;
+    try { w = n.getBBox().width; } catch (err) { w = 0; }
+    if(!w) w = String(labels[i]).length * 6.6;   // conservative sans estimate
+    if(w > max) max = w;
+  });
+  probe.forEach(n => n.remove());
+  return Math.ceil(max) + (pad === undefined ? 14 : pad);
+}
+function s(tag, attrs, text){
+  const n = document.createElementNS(SVGNS, tag);
+  for(const k in attrs) if(attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+  if(text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+function clear(n){ while(n.firstChild) n.removeChild(n.firstChild); }
+
+/* ---------- derived state ----------
+   Pure function of the FULL event set, recomputed every poll — never accumulated.
+   Backfill can arrive with a `sent` older than everything on screen and can turn an
+   absence into a presence, so an incrementally-updated latency or a logged alert
+   would keep a stale answer forever. Recomputing makes retraction free. */
+const SLOTS = ['--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
+
+function derive(){
+  // One filter, applied once, so every panel agrees about what is in scope.
+  // Human turns are excluded by default: this is a view of what the AGENTS said
+  // to each other, and on a real transcript the human is a third of the traffic
+  // — enough to dominate the activity chart and the message list while answering
+  // a different question. The toggle is in the header for when you want the
+  // steering back in view.
+  const events = [...store.events.values()]
+    .filter(e => ui.humans || e.kind !== 'human');
+  const ids = Object.keys(store.sessions).sort();
+  const colour = {};
+  /* Colour carries IDENTITY only. A session we hold no transcript for used to be
+     greyed, which overloads one channel with two meanings — and grey reads as
+     "less important" in every visual convention. In the common case (one machine's
+     transcripts) EVERY peer is a ghost, so half the marks on the timeline went
+     colourless and the conversation read as half-unimportant rather than
+     half-unconfirmed. Ghost-ness is carried by FORM instead: a dashed, unfilled
+     node in the mesh and an explicit legend label. */
+  // Sticky, append-only. Slots used to come from position in a sorted id list,
+  // so a session joining mid-run re-sorted the list and every existing session
+  // changed colour underneath the reader — on a LIVE page, mid-conversation.
+  // Identity must not move; a new arrival takes the next free slot instead.
+  ids.forEach(id => {
+    if(!store.slot[id]) store.slot[id] = 'var(' + SLOTS[store.slotN++ % SLOTS.length] + ')';
+    colour[id] = store.slot[id];
+  });
+  const when = e => e.sent || e.enqueued || e.delivered || null;
+  const sorted = events.slice().sort((a,b) => (ms(when(a))||0) - (ms(when(b))||0));
+
+  const stamps = sorted.map(when).map(ms).filter(t => t !== null);
+  const t0 = stamps.length ? Math.min(...stamps) : 0;
+  const t1 = stamps.length ? Math.max(...stamps) : 0;
+  const spanDays = (t1 - t0) > 20*3600*1000;
+
+  const edges = new Map();
+  const perSession = {};
+  ids.forEach(id => perSession[id] = {sent:0, recv:0, human:0, midturn:0, boundary:0, last:null});
+  sorted.forEach(e => {
+    if(e.kind === 'human'){
+      if(perSession[e.to_id]) perSession[e.to_id].human++;
+      return;
+    }
+    const k = e.from_id + '\x1f' + e.to_id;
+    edges.set(k, (edges.get(k) || 0) + 1);
+    if(perSession[e.from_id]) perSession[e.from_id].sent++;
+    if(perSession[e.to_id]){
+      perSession[e.to_id].recv++;
+      if(e.delivery === 'midturn') perSession[e.to_id].midturn++;
+      if(e.delivery === 'boundary') perSession[e.to_id].boundary++;
+    }
+    const t = ms(when(e));
+    [e.from_id, e.to_id].forEach(id => {
+      if(perSession[id] && (perSession[id].last === null || t > perSession[id].last)) perSession[id].last = t;
+    });
+  });
+
+  return {events: sorted, ids, colour, edges, perSession, t0, t1, spanDays, when};
+}
+
+/* ---------- alerts ----------
+   Structural only. A lexical trigger (the `correction` tag, or STOP/blocked in a
+   body) fires on every message of a healthy design argument — that is a stuck horn,
+   and it is the tool asserting a message mattered because of its vocabulary.
+   These are a derived SET, recomputed each tick, so they retract silently when
+   backfill turns an absence into a presence. */
+const SILENCE_MS = __SILENCE__ * 1000;
+
+function alerts(d, now){
+  /* Collapsed per (kind, peer). Seventeen instances of one structural fact is
+     ONE fact, and emitting it seventeen times buries the alert that is actually
+     actionable — a session having gone silent — under thirty repetitions of
+     "we don't hold that transcript".
+
+     This only shows up on real data. Run against your own machine's transcripts,
+     which is the normal way to use this, and EVERY peer is a ghost by
+     definition, so every message is unpaired. The fixture has one unpaired
+     message each way by design, so the uncollapsed panel looked correct on it. */
+  const groups = new Map();
+  const bump = (key, seed) => {
+    let g = groups.get(key);
+    if(!g){ g = Object.assign({n: 0, iso: null}, seed); groups.set(key, g); }
+    g.n++;
+    // keep the most recent instance as the timestamp
+    if(seed.iso && (!g.iso || Date.parse(seed.iso) > Date.parse(g.iso))) g.iso = seed.iso;
+    return g;
+  };
+
+  d.events.forEach(e => {
+    if(e.kind === 'human') return;
+    if(e.sides === 'out'){
+      bump('out\x1f' + e.to_id,
+           {sev:'critical', ico:'!', peer:e.to_id, kind:'out',
+            iso:e.sent, clock:'last sent'});
+    } else if(e.sides === 'in'){
+      bump('in\x1f' + e.from_id,
+           {sev:'warning', ico:'?', peer:e.from_id, kind:'in',
+            iso:e.enqueued || e.delivered, clock:'last arrived'});
+    }
+  });
+
+  const out = [];
+  groups.forEach(g => {
+    const many = g.n > 1;
+    const msgs = g.n + (many ? ' messages' : ' message');
+    if(g.kind === 'out'){
+      g.what = isGhost(g.peer)
+        ? msgs + ' to ' + name(g.peer) + ' cannot be confirmed — no transcript held for that session'
+        : msgs + ' to ' + name(g.peer) + ' never appeared in its transcript';
+      // A peer whose transcript we simply do not have is expected, not alarming.
+      // A peer we DO hold, missing messages we sent it, is the real signal.
+      g.sev = isGhost(g.peer) ? 'warning' : 'critical';
+    } else {
+      g.what = msgs + ' from ' + name(g.peer) +
+               ' cannot be confirmed — no sending transcript held';
+    }
+    out.push(g);
+  });
+
+  d.ids.forEach(id => {
+    const p = d.perSession[id];
+    if(!p || p.last === null) return;
+    if(isGhost(id)) return;
+    const idle = now - p.last;
+    if(idle > SILENCE_MS){
+      out.push({sev: idle > SILENCE_MS*3 ? 'serious' : 'warning', ico:'○', n:1,
+                what: name(id) + ' has been silent',
+                iso: new Date(p.last).toISOString(), clock:'last activity'});
+    }
+  });
+
+  const order = {critical:0, serious:1, warning:2};
+  return out.sort((a,b) => order[a.sev] - order[b.sev] || b.n - a.n);
+}
+
+function name(id){
+  const sx = store.sessions[id];
+  return (sx && sx.name) ? sx.name : (id || 'unknown');
+}
+function isGhost(id){ const sx = store.sessions[id]; return !!(sx && sx.ghost); }
+
+/* ---------- render: tiles ---------- */
+function renderTiles(d, now){
+  const box = document.getElementById('tiles'); clear(box);
+  const peer = d.events.filter(e => e.kind !== 'human');
+  const undelivered = peer.filter(e => e.sides === 'out').length;
+  const orphan = peer.filter(e => e.sides === 'in').length;
+  const midturn = peer.filter(e => e.delivery === 'midturn').length;
+  const humans = d.events.filter(e => e.kind === 'human').length;
+  const live = d.ids.filter(i => !isGhost(i)).length;
+
+  const tiles = [
+    ['Sessions', live, d.ids.length > live ? (d.ids.length - live) + ' referenced only' : 'all transcripts held', null],
+    ['Messages', peer.length, humans + ' human turn' + (humans === 1 ? '' : 's'), null],
+    ['Never landed', undelivered, undelivered ? 'sent, absent downstream' : 'all confirmed both sides',
+      undelivered ? 'critical' : null],
+    ['Unconfirmed', orphan, orphan ? 'no sending transcript' : 'every sender known',
+      orphan ? 'warning' : null],
+    ['Arrived mid-turn', midturn, peer.length ? Math.round(100*midturn/peer.length) + '% of traffic' : '—', null]
+  ];
+  tiles.forEach(([k, v, n, state]) => {
+    const t = el('div', 'tile');
+    if(state) t.setAttribute('data-state', state);
+    t.appendChild(el('div', 'k', k));
+    t.appendChild(el('div', 'v', v));
+    t.appendChild(el('div', 'n', n));
+    box.appendChild(t);
+  });
+}
+
+/* ---------- render: alerts ---------- */
+function renderAlerts(d, now){
+  const ul = document.getElementById('alerts'); clear(ul);
+  const list = alerts(d, now);
+  if(!list.length){
+    const p = el('li', 'calm', 'Nothing outstanding — every message is confirmed on both sides and no session is quiet.');
+    ul.appendChild(p); return;
+  }
+  list.forEach(a => {
+    const li = el('li', 'alert');
+    li.setAttribute('data-sev', a.sev);
+    li.appendChild(el('span', 'ico', a.ico));
+    li.appendChild(el('span', 'what', a.what));
+    const w = el('span', 'when');
+    const rel = el('span'); rel.setAttribute('data-rel', a.iso || '');
+    rel.textContent = relTime(a.iso, now);
+    w.appendChild(rel);
+    w.appendChild(document.createTextNode(' · ' + a.clock + ' ' + absSmart(a.iso, d.spanDays)));
+    w.title = a.clock + ' ' + (a.iso || 'unknown') + ' (UTC)';
+    li.appendChild(w);
+    ul.appendChild(li);
+  });
+}
+
+/* ---------- render: findings ----------
+   Anchoring: `event` is a stable event id and is preferred — verified stable
+   across a re-pair, so an event going out->both keeps its id. `msg` is the legacy
+   1-based index, kept so existing findings files keep working, but it is only
+   reliable on a frozen page: indices shift as messages arrive. An anchor that
+   cannot be resolved says so rather than jumping somewhere plausible and wrong. */
+const KIND_LABEL = {caught:'caught', saved:'cost avoided', method:'method',
+                    reversed:'reversed'};
+
+function anchorFor(f, d){
+  if(f.event){
+    const hit = d.events.find(e => e.id === f.event);
+    if(hit) return hit;
+  }
+  if(typeof f.msg === 'number' && f.msg >= 1 && f.msg <= d.events.length){
+    return d.events[f.msg - 1];
+  }
+  return null;
+}
+
+function renderFindings(d){
+  const sec = document.getElementById('findings-sec');
+  const ul = document.getElementById('finds');
+  if(!ul) return;
+  clear(ul);
+  if(!FINDINGS || !FINDINGS.length){ if(sec) sec.hidden = true; return; }
+  if(sec) sec.hidden = false;
+
+  FINDINGS.forEach(f => {
+    const li = el('li', 'find');
+    li.setAttribute('data-kind', f.kind || 'method');
+    // `who` was VM1|VM2|both in the pair-only schema; it is now any session name.
+    // Resolve through the sessions table INCLUDING aka, so a finding written
+    // before a rename still resolves after it — the alias list is already there.
+    // Falls back to a neutral accent rather than guessing.
+    const id = d.ids.find(i => {
+      const sx = store.sessions[i] || {};
+      return sx.name === f.who || (sx.aka || []).indexOf(f.who) !== -1;
+    });
+    li.style.setProperty('--bar', id ? d.colour[id] : 'var(--muted)');
+
+    const top = el('div', 'find-top');
+    top.appendChild(el('span', 'kind', KIND_LABEL[f.kind] || f.kind || 'note'));
+    if(f.who) top.appendChild(el('span', 'by mono', f.who));
+    li.appendChild(top);
+    li.appendChild(el('h3', null, f.title || ''));
+    li.appendChild(el('p', null, f.body || ''));
+
+    const target = anchorFor(f, d);
+    const btn = el('button', 'jump');
+    if(target){
+      btn.textContent = 'Open the message →';
+      btn.onclick = () => jumpTo(target.id);
+    } else {
+      btn.textContent = 'anchor not found in this data';
+      btn.disabled = true;
+    }
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+}
+
+function jumpTo(eventId){
+  ui.session = null; ui.q = '';
+  // The stream shows the newest few by default, so any anchor older than those
+  // was filtered out before the lookup and every jump silently did nothing.
+  ui.showAll = true;
+  const box = document.getElementById('q'); if(box) box.value = '';
+  paint();
+  const node = document.getElementById('m-' + eventId);
+  if(!node) return;
+  const head = node.querySelector('.top');
+  if(head && !node.classList.contains('open')) head.click();
+  node.scrollIntoView({behavior:'smooth', block:'center'});
+  node.classList.remove('hit'); void node.offsetWidth; node.classList.add('hit');
+}
+
+/* ---------- render: mesh ---------- */
+/* White is not readable on every slot. The categorical palette spans a dark blue
+   and a bright amber, and white-on-amber is about 2:1 — the count was legible on
+   one node and a smudge on the next. Resolve the CSS variable, measure relative
+   luminance, and put dark ink on light fills. Re-resolved on every paint, so it
+   follows a theme switch. */
+function ink(cssColour){
+  const v = String(cssColour || '').trim();
+  const m = v.match(/^var\((--[\w-]+)\)$/);
+  const raw = m ? getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() : v;
+  const hex = raw.replace('#','');
+  if(hex.length < 6) return '#fff';
+  const c = [0,2,4].map(i => parseInt(hex.slice(i,i+2),16)/255)
+                   .map(x => x <= 0.03928 ? x/12.92 : Math.pow((x+0.055)/1.055, 2.4));
+  const L = 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2];
+  // contrast of white vs of near-black against this fill; pick the winner
+  return (1.05/(L+0.05)) >= ((L+0.05)/0.05) ? '#fff' : '#10161d';
+}
+
+function renderMesh(d){
+  const svg = document.getElementById('mesh'); clear(svg);
+  // Sized for a narrow side column rather than half the page. The ring radius
+  // leaves room for the node label, which sits outside the disc.
+  // Labels sit BELOW their node, not out to the side. Radially-placed labels
+  // made the longest name set the radius, so one "unidentified local peer"
+  // collapsed the ring to its floor and the whole graph crowded into a quarter
+  // of the canvas — measured 84px of spread on a 320px width. Below-node labels
+  // cost vertical room instead, which the panel has, and the ring keeps its size.
+  const W = 340, H = 264, cx = W/2, cy = H/2 - 8;
+  const LABEL_ROOM = 104;                       // horizontal budget per label
+  const R = Math.max(52, Math.min((W - LABEL_ROOM)/2, (H - 84)/2));
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('height', H);
+  const n = d.ids.length;
+  if(!n){ svg.appendChild(s('text', {x:cx, y:cy, 'text-anchor':'middle'}, 'no sessions')); return; }
+
+  const pos = {};
+  d.ids.forEach((id, i) => {
+    const a = -Math.PI/2 + (2*Math.PI*i)/n;
+    pos[id] = {x: cx + R*Math.cos(a), y: cy + R*Math.sin(a), a};
+  });
+
+  const defs = s('defs');
+  const maxW = Math.max(1, ...d.edges.values());
+  d.ids.forEach((id, i) => {
+    const m = s('marker', {id:'ah'+i, viewBox:'0 0 10 10', refX:9, refY:5,
+      markerWidth:5, markerHeight:5, orient:'auto-start-reverse'});
+    m.appendChild(s('path', {d:'M0,0 L10,5 L0,10 z', fill:d.colour[id]}));
+    defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+
+  const maxSent = Math.max(1, ...d.ids.map(i => (d.perSession[i] || {}).sent || 0));
+
+  d.edges.forEach((count, k) => {
+    const [a, b] = k.split('\x1f');
+    if(!pos[a] || !pos[b]) return;
+    const p1 = pos[a], p2 = pos[b];
+    const mx = (p1.x+p2.x)/2, my = (p1.y+p2.y)/2;
+    const dx = p2.x-p1.x, dy = p2.y-p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    // bow each direction to its own side so A->B and B->A never overlap
+    const off = 17;
+    const qx = mx - (dy/len)*off, qy = my + (dx/len)*off;
+    const shrink = 20;
+    const sx = p1.x + (dx/len)*shrink, sy = p1.y + (dy/len)*shrink;
+    const ex = p2.x - (dx/len)*shrink, ey = p2.y - (dy/len)*shrink;
+    const idx = d.ids.indexOf(a);
+    svg.appendChild(s('path', {
+      d: 'M'+sx+','+sy+' Q'+qx+','+qy+' '+ex+','+ey,
+      fill:'none', stroke:d.colour[a], 'stroke-width': 1 + 3.4*(count/maxW),
+      'stroke-linecap':'round', opacity:0.75, 'marker-end':'url(#ah'+idx+')'}));
+    // Put the count a third of the way along the curve rather than at its
+    // midpoint. Midpoints of different edges converge near the centre of the
+    // layout — measured 27-38px apart with an 11px font, which is close enough
+    // that you cannot tell which number belongs to which arrow. A third of the
+    // way also sits it near the SENDER, so the label agrees with the edge colour.
+    // The halo keeps it readable where it crosses another edge.
+    const t = 0.32, it = 1 - t;
+    const lx = it*it*sx + 2*it*t*qx + t*t*ex;
+    const ly = it*it*sy + 2*it*t*qy + t*t*ey;
+    svg.appendChild(s('text', {x:lx, y:ly-3, 'text-anchor':'middle',
+      class:'edgelab'}, count));
+  });
+
+  d.ids.forEach(id => {
+    const p = pos[id], g = isGhost(id);
+    // Radius carries volume. It was fixed at 13, which wasted the most obvious
+    // encoding in the chart and left a two-digit count crammed into a 26px disc
+    // at 11px — legible in principle, not in practice. Scaling it makes the busy
+    // sessions bigger AND gives their number room.
+    const share = maxSent ? (d.perSession[id] ? d.perSession[id].sent || 0 : 0) / maxSent : 0;
+    const r = 11 + 7*Math.sqrt(share);
+    svg.appendChild(s('circle', {cx:p.x, cy:p.y, r:r,
+      fill: g ? 'var(--surface)' : d.colour[id],
+      stroke: g ? d.colour[id] : 'var(--surface)', 'stroke-width':2,
+      'stroke-dasharray': g ? '3 2' : null}));
+    const sent = d.perSession[id] ? d.perSession[id].sent : 0;
+    // Inline style, NOT a fill attribute. The stylesheet has `text{fill:var(--muted)}`
+    // and a CSS rule beats a presentation attribute, so the fill="#fff" this used
+    // to carry never applied — the counts rendered muted grey on a saturated disc
+    // at about 1.1:1, which is why they looked unreadable. Measured after the fix:
+    // 4.9:1 and up.
+    svg.appendChild(s('text', {x:p.x, y:p.y+4.5, 'text-anchor':'middle',
+      // Contrast is measured against whatever the disc is actually filled with:
+      // the session colour for a real node, the surface for a ghost's hollow
+      // ring. Tinting a ghost's number with its own amber put it at 2.2:1 on
+      // white. Identity still reads from the ring, which keeps its colour.
+      style:'fill:' + ink(g ? 'var(--surface)' : d.colour[id]),
+      class:'nodecount'}, sent));
+    // Truncate to the per-node budget rather than to whatever is left over at
+    // the panel edge, and keep the full name on hover.
+    const full = name(id);
+    const probe = s('text', {x:0, y:-999, class:'nodelab'});
+    svg.appendChild(probe);
+    const width = t => { probe.textContent = t;
+      return probe.getComputedTextLength ? probe.getComputedTextLength() : t.length*6; };
+    let shown = full;
+    if(width(full) > LABEL_ROOM){
+      let k = 1;
+      while(k < full.length && width(full.slice(0, k) + '…') <= LABEL_ROOM) k++;
+      shown = full.slice(0, Math.max(1, k - 1)) + '…';
+    }
+    svg.removeChild(probe);
+    const lab = s('text', {x:p.x, y:p.y + r + 13, 'text-anchor':'middle', class:'nodelab'}, shown);
+    if(shown !== full) lab.appendChild(s('title', {}, full));
+    svg.appendChild(lab);
+  });
+
+  const lg = document.getElementById('mesh-legend'); clear(lg);
+  d.ids.forEach(id => {
+    const sp = el('span');
+    const sw = el('span', 'sw round');
+    if(isGhost(id)){ sw.style.border = '2px dashed ' + d.colour[id]; }
+    else sw.style.background = d.colour[id];
+    sp.appendChild(sw);
+    sp.appendChild(el('span', null, name(id) + (isGhost(id) ? ' (no transcript)' : '')));
+    lg.appendChild(sp);
+  });
+}
+
+/* ---------- render: key insights & decisions ----------
+   Two tiers, and the distinction between them is the whole point.
+
+   CURATED entries come from --findings: a person or an agent read the exchange
+   and decided that one mattered. That judgement is theirs.
+
+   SURFACED entries are not the tool deciding what mattered — that stays
+   forbidden, and a sentiment tagger fires on wrong|corrected|refuted throughout
+   any healthy argument. They are the sentences in which a PARTICIPANT marked
+   their own conclusion: "I withdraw that", "you were right", "root cause".
+   The sentence itself is shown, so a reader can judge the basis rather than
+   trust a label. Anything the tool inferred is clearly separated from anything a
+   human asserted, and only the curated tier is ever persisted as a finding. */
+function renderInsights(d){
+  const box = document.getElementById('insights'); if(!box) return;
+  clear(box);
+  box.appendChild(el('h3', null, 'Key insights & decisions'));
+  box.appendChild(el('p', 'why',
+    'One entry per conversation — a run of agent-to-agent messages with no long ' +
+    'gap in it. What was discussed comes from the headlines the senders wrote; ' +
+    'what was decided is the sentence in which one of them said so.'));
+
+  const curated = (FINDINGS || []);
+  if(curated.length){
+    const h = el('div', 'ins'); h.setAttribute('data-kind', 'curated');
+    h.appendChild(el('div', 'k', 'curated'));
+    curated.slice(0, 4).forEach(f => {
+      const line = el('p', 'q', (f.title || '') + (f.body ? ' — ' + f.body : ''));
+      if(f.event){ line.style.cursor = 'pointer'; line.onclick = () => jumpTo(f.event); }
+      h.appendChild(line);
+    });
+    box.appendChild(h);
+  }
+
+  const xs = store.exchanges || [];
+  if(!xs.length){
+    box.appendChild(el('p', 'none',
+      'No agent-to-agent conversation yet. Entries appear once two sessions ' +
+      'exchange messages.'));
+    return;
+  }
+
+  xs.slice(0, 12).forEach(x => {
+    const card = el('div', 'xch');
+    const head = el('div', 'xh');
+    const span = dur(x.start, x.end);
+    head.appendChild(el('span', 'xt', absTime(x.start) + ' – ' + absTime(x.end)));
+    head.appendChild(el('span', 'xn',
+      x.n + ' msg' + (x.n === 1 ? '' : 's') + (span ? ' · ' + fmtDur(span) : '')));
+    card.appendChild(head);
+
+    const parties = el('div', 'xw');
+    (x.who || []).forEach((id, i) => {
+      if(i) parties.appendChild(el('span', 'xsep', '↔'));
+      const sw = el('span', 'sw round'); sw.style.background = d.colour[id] || 'var(--muted)';
+      parties.appendChild(sw);
+      parties.appendChild(el('span', null, name(id)));
+    });
+    card.appendChild(parties);
+
+    if(x.topics && x.topics.length){
+      card.appendChild(el('div', 'xlab', 'Discussed'));
+      const ul = el('ul', 'xlist');
+      x.topics.forEach(t => {
+        const li = el('li', null, t.text);
+        if(t.event){ li.onclick = () => jumpTo(t.event); li.title = 'Open this message'; }
+        ul.appendChild(li);
+      });
+      card.appendChild(ul);
+    }
+
+    if(x.decisions && x.decisions.length){
+      card.appendChild(el('div', 'xlab',
+        'Decided' + (x.n_decisions > x.decisions.length ? ' (' + x.n_decisions + ')' : '')));
+      x.decisions.forEach(dec => {
+        const row = el('div', 'ins');
+        row.setAttribute('data-kind', dec.kind);
+        const t = el('div');
+        t.appendChild(el('span', 'k', dec.kind));
+        t.appendChild(el('span', 'who', name(dec.who)));
+        row.appendChild(t);
+        row.appendChild(el('p', 'q', dec.quote));
+        if(dec.event){ row.onclick = () => jumpTo(dec.event); row.title = 'Open this message'; }
+        card.appendChild(row);
+      });
+    }
+    box.appendChild(card);
+  });
+}
+
+/* ---------- render: activity ----------
+   The rhythm of the exchange: how much traffic, from whom, when. The other
+   charts answer questions about the plumbing — did it land, how long did it
+   sit. This one answers the question someone actually opens the page for,
+   which is "are they busy right now, and who is doing the talking". */
+function renderActivity(d){
+  const svg = document.getElementById('activity'); clear(svg);
+  const note = document.getElementById('activity-note');
+  const ev = d.events.filter(e => ms(d.when(e)) !== null);
+  if(ev.length < 2){
+    svg.setAttribute('viewBox', '0 0 900 60'); svg.setAttribute('height', 60);
+    svg.appendChild(s('text', {x:450, y:34, 'text-anchor':'middle'}, 'not enough timed messages yet'));
+    if(note) note.textContent = '';
+    return;
+  }
+  // Sized to match the mesh beside it. As a full-width strip 118 was right;
+  // in a two-column row it left a slab of empty white next to the taller panel.
+  const W = 900, padL = 8, padR = 8, padB = 22, H = 232;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('height', H);
+  const t0 = d.t0, t1 = Math.max(d.t1, t0 + 1);
+  const N = 56, span = (t1 - t0) / N;
+  const buckets = Array.from({length:N}, () => ({}));
+  ev.forEach(e => {
+    const i = Math.min(N - 1, Math.max(0, Math.floor((ms(d.when(e)) - t0)/span)));
+    const k = e.kind === 'human' ? 'human' : e.from_id;
+    buckets[i][k] = (buckets[i][k] || 0) + 1;
+  });
+  const peak = Math.max(1, ...buckets.map(b => Object.values(b).reduce((a,c)=>a+c, 0)));
+  const bw = (W - padL - padR)/N;
+  const plotH = H - padB - 6;
+
+  buckets.forEach((b, i) => {
+    let y = H - padB;
+    Object.keys(b).sort().forEach(k => {
+      const h = (b[k]/peak)*plotH;
+      svg.appendChild(s('rect', {x: padL + i*bw + 0.6, y: y - h, width: Math.max(1, bw - 1.2),
+        height: h, rx:1,
+        fill: k === 'human' ? 'var(--ink)' : (d.colour[k] || 'var(--muted)'),
+        opacity: k === 'human' ? 0.55 : 0.85}));
+      y -= h;
+    });
+  });
+  svg.appendChild(s('line', {x1:padL, y1:H-padB, x2:W-padR, y2:H-padB, class:'axis'}));
+  [0, 0.5, 1].forEach(f => {
+    const t = t0 + (t1-t0)*f;
+    svg.appendChild(s('text', {x: padL + f*(W-padL-padR), y: H-6,
+      'text-anchor': f===0 ? 'start' : (f===1 ? 'end' : 'middle')},
+      absTime(new Date(t).toISOString())));
+  });
+
+  // headline rate, so the strip says something even at a glance
+  const mins = Math.max(1, (t1 - t0)/60000);
+  const recentFrom = Math.max(t0, t1 - 15*60000);
+  const recent = ev.filter(e => ms(d.when(e)) >= recentFrom).length;
+  if(note){
+    note.textContent = 'peak ' + peak + ' per ' + fmtDur(span/1000) + ' bucket · ' +
+      (Math.round(10*ev.length/mins)/10) + ' msg/min overall · ' +
+      recent + ' in the last ' + Math.round(Math.min(15, (t1-recentFrom)/60000)) + ' min';
+  }
+  const lg = document.getElementById('activity-legend'); clear(lg);
+  d.ids.forEach(id => {
+    const sp = el('span'); const sw = el('span', 'sw round');
+    sw.style.background = d.colour[id];
+    sp.appendChild(sw); sp.appendChild(el('span', null, name(id))); lg.appendChild(sp);
+  });
+  if(ev.some(e => e.kind === 'human')){
+    const sp = el('span'); const sw = el('span', 'sw round');
+    sw.style.background = 'var(--ink)'; sw.style.opacity = '0.55';
+    sp.appendChild(sw); sp.appendChild(el('span', null, 'human turns')); lg.appendChild(sp);
+  }
+}
+
+/* ---------- render: latency ---------- */
+function renderLatency(d){
+  const svg = document.getElementById('lat'); clear(svg);
+  const W = 470, padR = 20, padT = 10, rowH = 26;
+  const pairs = new Map();
+  d.events.forEach(e => {
+    if(e.kind === 'human') return;
+    const v = dur(e.sent, e.delivered);
+    if(v === null || v < 0) return;
+    const k = e.from_id + '\x1f' + e.to_id;
+    if(!pairs.has(k)) pairs.set(k, []);
+    pairs.get(k).push(v);
+  });
+  if(!pairs.size){
+    svg.setAttribute('viewBox', '0 0 ' + W + ' 60'); svg.setAttribute('height', 60);
+    svg.appendChild(s('text', {x:W/2, y:32, 'text-anchor':'middle'},
+      'no message has both a sender and a recipient clock'));
+    return;
+  }
+  const keys = [...pairs.keys()];
+  const padL = Math.min(240, gutterFor(svg,
+    keys.map(k => { const [a,b] = k.split('\x1f'); return name(a) + ' → ' + name(b); }), 'lane'));
+  const H = padT + keys.length*rowH + 30;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('height', H);
+  const hi = Math.max(...[...pairs.values()].flat());
+  const x = v => padL + (v/(hi || 1))*(W - padL - padR);
+  keys.forEach((k, i) => {
+    const [a, b] = k.split('\x1f');
+    const y = padT + i*rowH + rowH/2;
+    svg.appendChild(s('line', {x1:padL, y1:y, x2:W-padR, y2:y, class:'gridline'}));
+    const lab = s('text', {x:padL-9, y:y+4, 'text-anchor':'end', class:'lane'});
+    lab.textContent = name(a) + ' → ' + name(b);
+    svg.appendChild(lab);
+    pairs.get(k).forEach(v => {
+      const c = s('circle', {cx:x(v), cy:y, r:5, fill:d.colour[a] || 'var(--muted)',
+        stroke:'var(--surface)', 'stroke-width':2});
+      c.appendChild(s('title', {}, fmtDur(v)));
+      svg.appendChild(c);
+    });
+  });
+  const ay = H - 16;
+  svg.appendChild(s('line', {x1:padL, y1:ay-8, x2:W-padR, y2:ay-8, class:'axis'}));
+  [0, hi/2, hi].forEach((v, i) => {
+    svg.appendChild(s('text', {x:x(v), y:ay+4,
+      'text-anchor': i===0 ? 'start' : (i===2 ? 'end' : 'middle')}, fmtDur(v)));
+  });
+}
+
+/* ---------- render: stream ---------- */
+const ui = {showAll:false, session:null, q:'', open:new Set(), humans:false};
+try{ ui.humans = localStorage.getItem('agent-chatter-humans') === '1'; }catch(e){}
+
+function renderChips(d){
+  const box = document.getElementById('sessionchips'); clear(box);
+  const mk = (id, label) => {
+    const b = el('button', 'chip', label);
+    b.setAttribute('aria-pressed', String(ui.session === id));
+    b.onclick = () => { ui.session = (ui.session === id ? null : id); paint(); };
+    return b;
+  };
+  box.appendChild(mk(null, 'all'));
+  d.ids.forEach(id => box.appendChild(mk(id, name(id))));
+}
+
+const STREAM_HEAD = 5;
+
+function renderStream(d, now){
+  const box = document.getElementById('stream'); clear(box);
+  const list = d.events.filter(e =>
+    (!ui.session || e.from_id === ui.session || e.to_id === ui.session) &&
+    (!ui.q || (e.body || '').toLowerCase().includes(ui.q) ||
+              (e.summary || '').toLowerCase().includes(ui.q) ||
+              (e.preview || '').toLowerCase().includes(ui.q)));
+  document.getElementById('count').textContent = list.length + ' of ' + d.events.length;
+  if(!list.length){ box.appendChild(el('p', 'empty', 'No messages match those filters.')); return; }
+
+  // Newest first, and only a handful by default. This is a monitor you glance
+  // at: 56 rows on a live transcript is ~2500px that pushes every other panel
+  // off the page. `ui.showAll` survives a re-render so a poll does not collapse
+  // the list back under someone mid-read.
+  const ordered = list.slice().reverse();
+  const capped = !ui.showAll && ordered.length > STREAM_HEAD;
+  const shown = capped ? ordered.slice(0, STREAM_HEAD) : ordered;
+
+  shown.forEach(e => {
+    const art = el('article', 'msg');
+    art.id = 'm-' + e.id;                 // stable anchor for a curated finding
+    art.style.setProperty('--bar', d.colour[e.from_id] || 'var(--muted)');
+    const top = el('button', 'top');
+    top.setAttribute('aria-expanded', 'false');
+
+    const route = el('span', 'route');
+    if(e.kind === 'human'){
+      route.appendChild(el('span', null, 'human'));
+      route.appendChild(el('span', 'arrow', '→'));
+      route.appendChild(el('span', null, name(e.to_id)));
+    } else {
+      route.appendChild(el('span', null, name(e.from_id)));
+      route.appendChild(el('span', 'arrow', '→'));
+      route.appendChild(el('span', null, name(e.to_id)));
+    }
+    top.appendChild(route);
+
+    const when = e.sent || e.enqueued || e.delivered;
+    const t = el('span', 'pill mono');
+    t.textContent = absSmart(when, d.spanDays);
+    t.title = (e.sent ? 'sent ' : e.enqueued ? 'arrived ' : 'delivered ') + (when || '') + ' (UTC)';
+    top.appendChild(t);
+    const rel = el('span', 'pill mono');
+    rel.setAttribute('data-rel', when || '');
+    rel.textContent = relTime(when, now);
+    top.appendChild(rel);
+
+    top.appendChild(el('span', 'summ', e.preview || '(no summary)'));
+
+    const meta = el('span', 'meta');
+    (e.tags || []).forEach(g => meta.appendChild(el('span', 'pill', g)));
+    if(e.delivery) meta.appendChild(el('span', 'pill', e.delivery));
+    // Only claim a message never landed when we hold the recipient's transcript
+    // and can see it is absent. Against a ghost we hold nothing, so absence is
+    // not evidence — the alert panel already draws this distinction and the row
+    // pill did not, stamping "never landed" in red on messages that plainly
+    // arrived and were answered.
+    if(e.sides === 'out'){
+      meta.appendChild(isGhost(e.to_id)
+        ? el('span', 'pill warn', 'unconfirmed')
+        : el('span', 'pill crit', 'never landed'));
+    }
+    if(e.sides === 'in') meta.appendChild(el('span', 'pill warn', 'unconfirmed'));
+    meta.appendChild(el('span', 'pill', (e.words || 0) + 'w'));
+    top.appendChild(meta);
+
+    const body = el('div', 'body');
+    body.appendChild(el('pre', null, e.body || ''));
+
+    const dl = el('dl', 'clocks');
+    const rows = [
+      ['sent', e.sent, 'sender’s clock'],
+      ['arrived', e.enqueued, 'recipient’s clock'],
+      ['delivered', e.delivered, 'recipient consumed it']
+    ];
+    rows.forEach(([k, v, note]) => {
+      dl.appendChild(el('dt', null, k));
+      const dd = el('dd', v ? null : 'null');
+      if(v){ dd.textContent = absFull(v); dd.title = v + ' (UTC)'; }
+      else dd.textContent = 'not held — we have only the other side';
+      dl.appendChild(dd);
+      dl.appendChild(el('dd', null, note));
+    });
+    const tl = dur(e.sent, e.delivered), dw = dur(e.enqueued, e.delivered);
+    if(tl !== null){ dl.appendChild(el('dt', null, 'latency'));
+      dl.appendChild(el('dd', null, fmtDur(tl))); dl.appendChild(el('dd', null, 'sent → delivered')); }
+    if(dw !== null){ dl.appendChild(el('dt', null, 'dwell'));
+      dl.appendChild(el('dd', null, fmtDur(dw))); dl.appendChild(el('dd', null, 'arrived → delivered')); }
+    body.appendChild(dl);
+
+    // The open set lives in `ui`, not in the DOM. The stream is rebuilt on every
+    // poll, so a row opened by hand was wiped ~2s later — it expanded, then shut
+    // itself before you could read it.
+    if(ui.open.has(e.id)){
+      art.classList.add('open');
+      top.setAttribute('aria-expanded', 'true');
+    }
+    top.onclick = () => {
+      const open = art.classList.toggle('open');
+      top.setAttribute('aria-expanded', String(open));
+      if(open) ui.open.add(e.id); else ui.open.delete(e.id);
+    };
+    art.appendChild(top);
+    // A second line of the actual message. Without it the row is metadata about
+    // a conversation rather than the conversation, and you have to open every
+    // one to find out whether it mattered.
+    const flat = (e.body || '').replace(/\s+/g, ' ').trim();
+    const head = (e.preview || '').replace(/…$/, '').trim();
+    // Start after whatever the headline already consumed. The preview is derived
+    // from the body's first line whenever the sender supplied no summary, so
+    // without this every such row printed its own headline twice.
+    let snip = flat;
+    const at = head && flat.indexOf(head.slice(0, 40));
+    if(head && at === 0) snip = flat.slice(head.length).replace(/^[\s—:.-]+/, '');
+    if(snip.length > 24){
+      const p = el('p', 'snip');
+      p.textContent = snip.slice(0, 340);
+      art.appendChild(p);
+    }
+    art.appendChild(body);
+    box.appendChild(art);
+  });
+
+  if(capped){
+    const more = el('button', 'more');
+    more.textContent = 'Show ' + (ordered.length - STREAM_HEAD) + ' more  ▾';
+    more.onclick = () => { ui.showAll = true; paint(); };
+    box.appendChild(more);
+  } else if(ui.showAll && ordered.length > STREAM_HEAD){
+    const less = el('button', 'more');
+    less.textContent = 'Show fewer  ▴';
+    less.onclick = () => { ui.showAll = false; paint(); };
+    box.appendChild(less);
+  }
+}
+
+/* ---------- paint ---------- */
+function paint(){
+  const now = Date.now();
+  const d = derive();
+  renderTiles(d, now);
+  renderActivity(d);
+  renderAlerts(d, now);
+  renderFindings(d);
+  renderMesh(d);
+  renderLatency(d);
+  renderChips(d);
+  renderStream(d, now);
+  renderInsights(d);
+  document.getElementById('tzlabel').textContent =
+    'times in ' + TZ + ' · hover any timestamp for UTC';
+  document.getElementById('footer-tz').textContent =
+    'Timestamps render in the viewer’s zone (' + TZ + '); the UTC value from the transcript is in each title attribute.';
+  document.getElementById('streamnote').textContent =
+    d.events.length + ' message' + (d.events.length === 1 ? '' : 's') +
+    (d.spanDays ? ' spanning more than a day — dates shown' : '');
+}
+
+/* relative labels recompute on the tick; a "2m ago" baked at render and now ten
+   minutes stale is worse than showing nothing. */
+setInterval(() => {
+  const now = Date.now();
+  document.querySelectorAll('[data-rel]').forEach(n => {
+    const iso = n.getAttribute('data-rel');
+    if(iso) n.textContent = relTime(iso, now);
+  });
+}, 1000);
+
+document.getElementById('q').oninput = e => { ui.q = e.target.value.toLowerCase(); paint(); };
+
+/* ---------- feed ----------
+   Polling, not SSE: the static page is this same page with data inlined and the
+   cursor never advancing, so there is exactly one renderer. Deltas are appends;
+   a changed snapshot_id means the model revised events it already emitted
+   (pairing merged two into one, or a rename changed a resolved id) and we refetch. */
+function setLive(state, note){
+  const p = document.getElementById('pulse');
+  p.className = 'pulse ' + state;
+  document.getElementById('livetext').textContent = note;
+}
+
+async function poll(){
+  try{
+    const r = await fetch(FEED + '?since=' + encodeURIComponent(store.seq));
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const payload = await r.json();
+    const resync = store.snapshot && payload.snapshot_id && payload.snapshot_id !== store.snapshot;
+    if(resync){
+      const full = await (await fetch(FEED + '?since=-1')).json();
+      ingest(full, true);
+    } else {
+      ingest(payload, false);
+    }
+    store.ok = true;
+    setLive('on', 'live · ' + store.events.size + ' messages');
+    paint();
+  }catch(err){
+    store.ok = false;
+    setLive('stale', 'reconnecting…');
+  }
+}
+
+/* ---------- theme ----------
+   Three states, matching the three the CSS already defines: `auto` stamps
+   nothing and lets prefers-color-scheme decide, which is what most viewers get;
+   `light` and `dark` stamp data-theme and win over the media query in both
+   directions. Persisted per-origin, and wrapped because localStorage throws in
+   some file:// and sandboxed contexts and a theme button must never be the
+   thing that stops the page booting. */
+const THEMES = [
+  {id:'auto',  label:'Auto',  icon:'◐'},
+  {id:'light', label:'Light', icon:'☀'},
+  {id:'dark',  label:'Dark',  icon:'☾'}
+];
+
+function readTheme(){
+  try{ const v = localStorage.getItem('agent-chatter-theme');
+       return THEMES.some(t => t.id === v) ? v : 'auto'; }
+  catch(e){ return 'auto'; }
+}
+
+function applyTheme(id){
+  const root = document.documentElement;
+  if(id === 'auto') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', id);
+  const t = THEMES.find(x => x.id === id) || THEMES[0];
+  const btn = document.getElementById('theme');
+  if(btn){
+    clear(btn);
+    btn.appendChild(el('span', null, t.icon));
+    btn.appendChild(el('span', null, t.label));
+    btn.setAttribute('aria-label', 'Colour theme: ' + t.label + '. Click to change.');
+  }
+  try{ localStorage.setItem('agent-chatter-theme', id); }catch(e){}
+}
+
+(function initHumans(){
+  const btn = document.getElementById('humans');
+  if(!btn) return;
+  const paintBtn = () => {
+    clear(btn);
+    btn.appendChild(el('span', null, ui.humans ? '\u25c9' : '\u25cb'));
+    btn.appendChild(el('span', null, ui.humans ? 'Humans shown' : 'Agents only'));
+    btn.setAttribute('aria-pressed', String(!ui.humans));
+  };
+  paintBtn();
+  btn.onclick = () => {
+    ui.humans = !ui.humans;
+    try{ localStorage.setItem('agent-chatter-humans', ui.humans ? '1' : '0'); }catch(e){}
+    paintBtn(); paint();
+  };
+})();
+
+(function initTheme(){
+  let cur = readTheme();
+  applyTheme(cur);
+  const btn = document.getElementById('theme');
+  if(!btn) return;
+  btn.onclick = () => {
+    cur = THEMES[(THEMES.findIndex(t => t.id === cur) + 1) % THEMES.length].id;
+    applyTheme(cur);
+    paint();            // charts read colours from CSS vars at draw time
+  };
+})();
+
+if(BOOT) ingest(BOOT, true);
+paint();
+if(FEED){ setLive('on', 'live'); poll(); setInterval(poll, POLL_MS); }
+else setLive('off', 'static snapshot · ' + store.events.size + ' messages');
+</script>
