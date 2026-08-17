@@ -125,69 +125,73 @@ Messages per time bucket, stacked by sender. This is where the shape of a
 collaboration shows up: the bursts, the silences, and who is actually doing the
 talking.
 
-### Key insights & decisions
+### Summarized key decisions
 
-<img src="docs/img/insights.png" width="430" alt="Key insights and decisions: your note, a model summary, and the participants' own words">
+<img src="docs/img/insights.png" width="430" alt="Summarized key decisions — one summary per conversation">
 
 One entry **per conversation**, not per message. Messages are grouped into
-exchanges by silence gaps, and each entry says what was discussed and what came
-out of it.
+conversations by silence gaps, and Claude writes what each one settled.
 
-Three tiers, and the difference between them is the point — **every entry says
-who wrote it**:
+Summaries or nothing — the panel does not pad itself with subject lines when it
+has nothing to say. Every card names the model that wrote it, because that is
+the one thing that keeps generated prose from being mistaken for something
+observed. What the participants actually said is in the message stream, in full,
+where it is not a fragment.
 
-| Tier | Who wrote it |
-|---|---|
-| **Your note** | **You did**, in a [findings file](#your-own-findings) you pass with `--findings`. Nothing else puts entries here. |
-| **Summary** | **A model**, and the card names which one. Opt-in via [`--summarize`](#summaries); off unless you ask and pay for it. |
-| **Discussed / Decided** | **The participants.** Their own headlines, and the sentences where one of them marked a conclusion — *"I withdraw that"*, *"you were right"*, *"root cause"* — quoted verbatim, so you judge the basis instead of trusting a label. |
+Nothing is summarised until you ask. With a key configured, the live dashboard
+gives you a button:
 
-The tool never decides for itself which exchange mattered. That is why the tiers
-stay visually separate rather than blending into one confident paragraph: a
-reader has to be able to tell an observation from an assertion at a glance.
+<img src="docs/img/summary-button.png" width="420" alt="Summarise 5 conversations">
+
+Without one, it says so and tells you what to do about it:
+
+<img src="docs/img/summary-note.png" width="420" alt="Summaries are off — no API key configured">
 
 ### Summaries
-
-The bottom tier is free and honest but thin — six headlines are six subject
-lines, not an account of what was argued. `--summarize` has Claude write the
-account, into its own labelled block:
-
-```bash
-agent-chatter --summarize
-```
 
 > [!WARNING]
 > **This costs money, billed to your key.** It sends your message bodies to the
 > Anthropic API — one request per conversation, every conversation it has not
 > already summarised. On a project with months of history that is not a small
-> number, so it is off by default and capped when you do turn it on. Everything
-> else in this tool runs offline and costs nothing.
+> number, so nothing runs until you ask, and it is capped when you do.
+> Everything else in this tool runs offline and costs nothing.
 
 Setup is one file, in the directory you run from or at
 `~/.config/agent-chatter/.env`:
 
 ```bash
 echo 'ANTHROPIC_API_KEY=sk-ant-…' > .env
-
-./agent-chatter --summarize                              # from a clone, with `anthropic` installed
-uvx --with anthropic \
-    --from git+https://github.com/jasmeetsb/agent-chatter-visualizer \
-    agent-chatter --summarize                            # without installing anything
 ```
 
-The panel always says which of these you are looking at, at the top, rather than
-leaving it to the terminal that started the server — the person reading the page
-is often not the person who ran the command:
+That is all. Start the dashboard as usual and press the button:
 
-<img src="docs/img/summary-note.png" width="420" alt="Summaries are off — how to turn them on">
+```bash
+agent-chatter
+```
 
-| What you ran | What the panel says |
+`--summarize` skips the button and starts immediately — useful for `--build`,
+which has no button to press:
+
+```bash
+agent-chatter --build page.html --summarize
+```
+
+The button needs the `anthropic` package as well as a key. From a clone,
+`pip install anthropic`; without installing anything:
+
+```bash
+uvx --with anthropic \
+    --from git+https://github.com/jasmeetsb/agent-chatter-visualizer \
+    agent-chatter
+```
+
+| Situation | What the panel shows |
 |---|---|
-| nothing — no key | how to turn summaries on |
-| nothing — key already set | just add `--summarize` |
-| `--summarize`, no key | **Summaries unavailable**, and why |
-| `--summarize` with a key | nothing; the summaries are right there |
-| `--demo` | that the demo's summaries ship pre-generated |
+| key configured, nothing summarised | the estimate and a **Summarise N conversations** button |
+| no key | **Summaries are off**, and where to put one |
+| running | what it is reading and roughly what it will cost |
+| done | the summaries |
+| `--demo` | summaries that ship pre-generated, and says so |
 
 #### What it will spend
 

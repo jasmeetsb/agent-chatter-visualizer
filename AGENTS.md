@@ -53,20 +53,28 @@ failure is silent, and the page and the log end up disagreeing about what was
 said.
 
 **Never generate findings.** Heuristic tags exist for filtering. Deciding which
-exchange mattered is a judgement and belongs to whoever supplies `--findings`.
-The insights panel may surface a sentence in which a participant marked their own
-conclusion, quoted verbatim, and must keep that visually separate from curated
-entries. A tagger that also ranked importance would produce confident nonsense.
+exchange mattered is a judgement and belongs to whoever supplies `--findings`,
+which is why "What came out of it" takes an input file and has no generator
+behind it. A tagger that also ranked importance would produce confident nonsense.
 
-**Generated text is a third tier, never a blend.** `--summarize` does put model
-prose on the page, and that does not weaken the rule above — it is allowed
-precisely because the authorship stays visible. Three tiers, three authors:
-curated (a person wrote it), summary (a model wrote it, captioned with which
-one), discussed/decided (a participant wrote it, verbatim). Anything that merges
-generated sentences into the quoted ones, drops the `written by` caption, or lets
-a summary reach the page without `--summarize` breaks the only thing that makes
-the middle tier safe to show. It is also the only network call in the repo: keep
-it behind the flag, keep the import lazy, and keep every other path offline.
+**Generated text is labelled, always.** The summaries panel is model-written
+prose, which is exactly what the rule above exists to keep out of a published
+page — it is allowed only because every card is captioned with the model that
+wrote it. Drop that caption and the panel becomes the tool asserting what
+mattered. It is also the only network call in the repo: keep the import lazy and
+every other path offline.
+
+**Nothing is summarised without being asked.** Either `--summarize`, or the
+button, which POSTs to `/summarize`. A key existing is not permission to spend
+it — `Summarizer.ready` means it is possible, `auto` means go ahead, and code
+that conflates them bills someone for running `--build`. That is why `page.py`
+gates on `auto`.
+
+**The POST endpoint carries a token.** It spends money, and localhost is
+reachable by every page in the user's browser: a cross-origin script can POST
+here even though it cannot read the response. The token is per process, embedded
+only in the page we served, and same-origin policy is what keeps it out of
+anyone else's reach. Do not add CORS headers, and do not add a GET that spends.
 
 **A cap is never silent.** `--summarize` spends the user's money, so it is capped
 per run and per conversation — and every cap reports what it left out, on the

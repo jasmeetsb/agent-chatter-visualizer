@@ -85,7 +85,9 @@ section{margin:30px 0}
 .head p{margin:0;color:var(--faint);font-size:12.5px}
 
 /* ---- stat tiles ---- */
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:11px}
+/* Capped rather than 1fr: with only two tiles left, stretching them to fill the
+   row makes two small numbers look like a banner. */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,232px));gap:11px}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:13px 15px;box-shadow:var(--shadow)}
 .tile .k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .tile .v{font-size:25px;font-weight:660;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
@@ -142,16 +144,6 @@ section{margin:30px 0}
   border-radius:5px;padding:14px 15px;box-shadow:var(--shadow);max-height:calc(100vh - 40px);
   overflow:auto}
 .insights h3{margin:0 0 12px;font-size:13.5px;font-weight:640}
-.ins{border-left:3px solid var(--bar);padding:8px 0 8px 11px;margin:0 0 11px;cursor:pointer}
-.ins:hover .q{color:var(--ink)}
-.ins[data-kind="reversed"]{--bar:var(--critical)}
-.ins[data-kind="decided"]{--bar:var(--good)}
-.ins[data-kind="found"]{--bar:var(--s1)}
-.ins[data-kind="yours"]{--bar:var(--ink)}
-.ins .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--bar)}
-.ins .who{font-size:10.5px;color:var(--faint);margin-left:6px}
-.ins .q{margin:3px 0 0;font-size:12.3px;line-height:1.5;color:var(--ink-2)}
-.ins .t{font-size:10.5px;color:var(--faint);margin-top:3px}
 .xch{border-top:1px solid var(--line-2);padding:12px 0 4px;margin:0}
 .xch.clickable{cursor:pointer}
 .xch.clickable:hover .xt{color:var(--s1)}
@@ -162,25 +154,19 @@ section{margin:30px 0}
 .xw{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:4px 0 8px;
   font-size:11px;color:var(--muted)}
 .xsep{color:var(--faint)}
-.xlab{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;
-  color:var(--faint);margin:8px 0 4px}
-.xlist{margin:0;padding-left:15px;font-size:12.2px;line-height:1.5;color:var(--ink-2)}
-.xlist li{margin:0 0 4px;cursor:pointer}
-.xlist li:hover{color:var(--ink)}
-.insights .none{color:var(--faint);font-size:12px}
-/* The third tier. Curated entries are a person's judgement, the quotes below are
-   a participant's own words, and this is a model's prose about both — so it is
-   drawn as something written rather than something observed: dashed, tinted, and
-   captioned with the model that wrote it. A reader has to be able to discount it
-   at a glance, and that is the only reason it is allowed on the page at all. */
-.gen{border:1px dashed var(--line);border-left:3px solid var(--s3);border-radius:4px;
-  background:var(--gen-bg);padding:9px 11px;margin:8px 0 4px}
-.gen .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;
-  color:var(--s3)}
-.gen .by{font-size:10.5px;color:var(--faint);margin-left:6px}
-.gen p{margin:4px 0 0;font-size:12.4px;line-height:1.55;color:var(--ink-2)}
-.gen ul{margin:6px 0 0;padding-left:15px;font-size:12.2px;line-height:1.5;color:var(--ink-2)}
-.gen li{margin:0 0 3px}
+.sum{margin:0;font-size:12.4px;line-height:1.55;color:var(--ink-2)}
+.sumlist{margin:7px 0 0;padding-left:15px;font-size:12.2px;line-height:1.5;color:var(--ink-2)}
+.sumlist li{margin:0 0 3px}
+/* Every card carries this. The panel is entirely model-written prose now, and
+   the one thing keeping that honest is never letting it be mistaken for
+   something observed. Quiet, but never absent. */
+.byline{margin:7px 0 2px;font-size:10px;letter-spacing:.02em;color:var(--faint)}
+.sumbtn{display:block;margin:9px 0 0;padding:6px 12px;border:1px solid var(--s1);
+  border-radius:999px;background:var(--surface);color:var(--s1);font:inherit;
+  font-size:11.5px;font-weight:640;cursor:pointer}
+.sumbtn:hover:not(:disabled){background:var(--s1);color:#fff}
+.sumbtn:disabled{opacity:.55;cursor:default;border-color:var(--line);color:var(--muted)}
+.sumbtn:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
 .warnbox{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:4px;
   padding:9px 11px;margin:0 0 12px;font-size:11.6px;line-height:1.5;color:var(--ink-2)}
 .warnbox b{color:var(--ink);font-weight:640}
@@ -367,9 +353,11 @@ const POLL_MS = __POLL__;
    and a generator would produce confident nonsense. This is the one part of the
    page that is a human judgment, which is exactly why it is an input. */
 const FINDINGS = __FINDINGS__;
-/* Set only when --summarize was asked for and could not run. Null otherwise —
-   the page never advertises an optional feature to someone who did not ask. */
-const SUMMARY_NOTE = __SUMMARYNOTE__;
+/* Everything the summaries panel needs to explain or offer itself:
+   {can, token, note, model}. `can` and `token` are only set for a live server
+   with a key configured — a frozen page has nothing to POST to, and the page
+   never guesses at either. */
+const SUMMARIZE = __SUMMARIZE__;
 
 /* ---------- store ---------- */
 const store = {slot:{}, slotN:0, exchanges:[], events: new Map(), sessions: {}, sources: [], snapshot: null, seq: -1,
@@ -383,6 +371,10 @@ function ingest(payload, replace){
   if(payload.exchanges) store.exchanges = payload.exchanges;
   store.snapshot = payload.snapshot_id;
   if(typeof payload.seq === 'number') store.seq = payload.seq;
+  /* The server owns "is a summarise running", not this tab: a second tab that
+     never pressed the button still needs to show it, and the tab that did needs
+     to stop when the work finishes. */
+  if(typeof payload.summarizing === 'boolean') summarizeState.busy = payload.summarizing;
 }
 
 /* ---------- time ----------
@@ -629,24 +621,23 @@ function name(id){
 }
 function isGhost(id){ const sx = store.sessions[id]; return !!(sx && sx.ghost); }
 
-/* ---------- render: tiles ---------- */
+/* ---------- render: tiles ----------
+   Two, not five. The other three were delivery diagnostics — never landed,
+   unconfirmed, arrived mid-turn — and they answered a question about the
+   plumbing rather than about the collaboration, in the most prominent space on
+   the page. Worse, on a one-sided capture two of them are permanently red about
+   a structural fact that will never change: you are holding one machine's
+   transcripts, so of course the far side is unconfirmed. That state is still on
+   every message that has it, as a pill, and in the attention panel. */
 function renderTiles(d, now){
   const box = document.getElementById('tiles'); clear(box);
   const peer = d.events.filter(e => e.kind !== 'human');
-  const undelivered = peer.filter(e => e.sides === 'out').length;
-  const orphan = peer.filter(e => e.sides === 'in').length;
-  const midturn = peer.filter(e => e.delivery === 'midturn').length;
   const humans = d.events.filter(e => e.kind === 'human').length;
   const live = d.ids.filter(i => !isGhost(i)).length;
 
   const tiles = [
     ['Sessions', live, d.ids.length > live ? (d.ids.length - live) + ' referenced only' : 'all transcripts held', null],
-    ['Messages', peer.length, humans + ' human turn' + (humans === 1 ? '' : 's'), null],
-    ['Never landed', undelivered, undelivered ? 'sent, absent downstream' : 'all confirmed both sides',
-      undelivered ? 'critical' : null],
-    ['Unconfirmed', orphan, orphan ? 'no sending transcript' : 'every sender known',
-      orphan ? 'warning' : null],
-    ['Arrived mid-turn', midturn, peer.length ? Math.round(100*midturn/peer.length) + '% of traffic' : '—', null]
+    ['Messages', peer.length, humans + ' human turn' + (humans === 1 ? '' : 's'), null]
   ];
   tiles.forEach(([k, v, n, state]) => {
     const t = el('div', 'tile');
@@ -900,79 +891,46 @@ function renderMesh(d){
   });
 }
 
-/* ---------- render: key insights & decisions ----------
-   Two tiers, and the distinction between them is the whole point.
+/* ---------- render: summarised key decisions ----------
+   Summaries or nothing. This panel used to stack three unrelated things —
+   entries from --findings, the senders' own subject lines, and quoted sentences
+   where a participant marked a conclusion — under one heading, which asked the
+   reader to work out which of three authors each block came from before it said
+   anything. The subject lines in particular were headline fragments dressed up
+   as insight.
 
-   CURATED entries come from --findings: a person or an agent read the exchange
-   and decided that one mattered. That judgement is theirs.
-
-   SURFACED entries are not the tool deciding what mattered — that stays
-   forbidden, and a sentiment tagger fires on wrong|corrected|refuted throughout
-   any healthy argument. They are the sentences in which a PARTICIPANT marked
-   their own conclusion: "I withdraw that", "you were right", "root cause".
-   The sentence itself is shown, so a reader can judge the basis rather than
-   trust a label. Anything the tool inferred is clearly separated from anything a
-   human asserted, and only the curated tier is ever persisted as a finding. */
+   What is left is one entry per conversation, written by a model, captioned with
+   which one. Everything a participant actually said is in the message stream
+   below, where it belongs and where it is not a snippet. */
 function renderInsights(d){
   const box = document.getElementById('insights'); if(!box) return;
   clear(box);
-  box.appendChild(el('h3', null, 'Key insights & decisions'));
-
-  /* Why the summary tier looks the way it does. Says it here rather than only on
-     the terminal that started the server: the person reading the panel is often
-     not the person who ran the command, and silence reads as "the feature is
-     broken" — or, worse, as the feature not existing at all. */
-  if(SUMMARY_NOTE && SUMMARY_NOTE.text){
-    const warn = SUMMARY_NOTE.level === 'warn';
-    const w = el('div', warn ? 'warnbox' : 'infobox');
-    w.appendChild(el('b', null, warn ? 'Summaries unavailable. ' : 'Summaries. '));
-    /* Keep flags, env vars and paths on one line. Wrapped mid-token, `--summarize`
-       renders as "-- summarize", which is not a thing anyone can paste. Split
-       rather than innerHTML: this text is ours, but the rule that nothing here
-       is built from a string of markup is worth not making exceptions to. */
-    SUMMARY_NOTE.text.split(/(--[\w-]+|[A-Z_]{6,}|~?[\w./-]*\.env)/).forEach((part, i) => {
-      w.appendChild(i % 2 ? el('span', 'nb', part) : document.createTextNode(part));
-    });
-    box.appendChild(w);
-  }
-
-  const curated = (FINDINGS || []);
-  if(curated.length){
-    /* Named for who wrote it, like the two tiers below — "written by
-       claude-opus-5" on a summary, the participant's own name on a quote. This
-       one used to read "curated", which names a process rather than an author
-       and left the one human-written tier as the only one that did not say whose
-       words they were. */
-    const h = el('div', 'ins'); h.setAttribute('data-kind', 'yours');
-    h.appendChild(el('div', 'k', 'your note'));
-    curated.slice(0, 4).forEach(f => {
-      const line = el('p', 'q', (f.title || '') + (f.body ? ' — ' + f.body : ''));
-      if(f.event){ line.style.cursor = 'pointer'; line.onclick = () => jumpTo(f.event); }
-      h.appendChild(line);
-    });
-    box.appendChild(h);
-  }
+  box.appendChild(el('h3', null, 'Summarized key decisions'));
 
   const inScope = new Set((store.sources || [])
     .filter(x => !ui.project || x.project === ui.project).map(x => x.id));
   const xs = (store.exchanges || []).filter(x =>
     !ui.project || !x.srcs || !x.srcs.length || x.srcs.some(sid => inScope.has(sid)));
-  if(!xs.length){
-    box.appendChild(el('p', 'none',
-      'No agent-to-agent conversation yet. Entries appear once two sessions ' +
-      'exchange messages.'));
-    return;
-  }
+  const done = xs.filter(x => x.ai && x.ai.summary);
 
-  xs.slice(0, 12).forEach(x => {
+  /* State of the feature, whenever it is not simply working. The person reading
+     the panel is often not the person who ran the command, so "nothing here"
+     has to say which nothing it is: no conversations yet, no key, or a key and
+     nobody has pressed the button. */
+  if(!done.length || summarizeState.busy || SUMMARIZE.note){
+    box.appendChild(summarizeBox(xs.length, done.length));
+  }
+  if(!done.length) return;
+
+  done.slice(0, 12).forEach(x => {
     const card = el('div', 'xch');
-    const head = el('div', 'xh');
     if(x.id){
       card.classList.add('clickable');
       card.title = 'Open the message this conversation started with';
-      card.onclick = ev => { if(!ev.target.closest('.ins, .xlist li')) jumpTo(x.id); };
+      card.onclick = () => jumpTo(x.id);
     }
     const span = dur(x.start, x.end);
+    const head = el('div', 'xh');
     head.appendChild(el('span', 'xt', absTime(x.start) + ' – ' + absTime(x.end)));
     head.appendChild(el('span', 'xn',
       x.n + ' msg' + (x.n === 1 ? '' : 's') + (span ? ' · ' + fmtDur(span) : '')));
@@ -987,53 +945,97 @@ function renderInsights(d){
     });
     card.appendChild(parties);
 
-    /* Generated first, because it is the readable account and the bullets below
-       are the evidence for it — but never unlabelled. `by` names the model so
-       the sentence "a model wrote this" is on screen next to the prose itself,
-       not buried in a legend somewhere. */
-    if(x.ai && x.ai.summary){
-      const g = el('div', 'gen');
-      const h = el('div');
-      h.appendChild(el('span', 'k', 'summary'));
-      h.appendChild(el('span', 'by', 'written by ' + (x.ai.model || 'a model')));
-      g.appendChild(h);
-      g.appendChild(el('p', null, x.ai.summary));
-      if(x.ai.decisions && x.ai.decisions.length){
-        const ul = el('ul');
-        x.ai.decisions.forEach(t => ul.appendChild(el('li', null, t)));
-        g.appendChild(ul);
-      }
-      card.appendChild(g);
-    }
-
-    if(x.topics && x.topics.length){
-      card.appendChild(el('div', 'xlab', 'Discussed'));
-      const ul = el('ul', 'xlist');
-      x.topics.forEach(t => {
-        const li = el('li', null, t.text);
-        if(t.event){ li.onclick = () => jumpTo(t.event); li.title = 'Open this message'; }
-        ul.appendChild(li);
-      });
+    card.appendChild(el('p', 'sum', x.ai.summary));
+    if(x.ai.decisions && x.ai.decisions.length){
+      const ul = el('ul', 'sumlist');
+      x.ai.decisions.forEach(t => ul.appendChild(el('li', null, t)));
       card.appendChild(ul);
     }
-
-    if(x.decisions && x.decisions.length){
-      card.appendChild(el('div', 'xlab',
-        'Decided' + (x.n_decisions > x.decisions.length ? ' (' + x.n_decisions + ')' : '')));
-      x.decisions.forEach(dec => {
-        const row = el('div', 'ins');
-        row.setAttribute('data-kind', dec.kind);
-        const t = el('div');
-        t.appendChild(el('span', 'k', dec.kind));
-        t.appendChild(el('span', 'who', name(dec.who)));
-        row.appendChild(t);
-        row.appendChild(el('p', 'q', dec.quote));
-        if(dec.event){ row.onclick = () => jumpTo(dec.event); row.title = 'Open this message'; }
-        card.appendChild(row);
-      });
-    }
+    /* Every card says a model wrote it. The panel is now entirely generated
+       prose, and the one thing that keeps that honest is never letting it be
+       mistaken for something observed. */
+    card.appendChild(el('div', 'byline', 'written by ' + (x.ai.model || 'a model')));
     box.appendChild(card);
   });
+}
+
+/* Live state of a summarise request, kept out of `store` because it belongs to
+   this browser tab rather than to the data. */
+const summarizeState = {busy:false, msg:null, err:null};
+
+function summarizeBox(total, done){
+  const w = el('div', SUMMARIZE.note && SUMMARIZE.note.level === 'warn' ? 'warnbox' : 'infobox');
+
+  if(!total){
+    w.appendChild(document.createTextNode(
+      'No agent-to-agent conversation yet. Summaries appear once two sessions ' +
+      'have exchanged messages.'));
+    return w;
+  }
+  if(summarizeState.busy){
+    w.appendChild(el('b', null, 'Summarising… '));
+    w.appendChild(document.createTextNode(summarizeState.msg ||
+      'Claude is reading the conversations; this takes a few seconds each.'));
+    return w;
+  }
+  if(summarizeState.err){
+    w.className = 'warnbox';
+    w.appendChild(el('b', null, 'Could not summarise. '));
+    w.appendChild(document.createTextNode(summarizeState.err));
+    return w;
+  }
+  if(SUMMARIZE.note) w.appendChild(noteText(SUMMARIZE.note.text));
+
+  /* The button only exists when a key is configured AND this is a live server —
+     a frozen page has nothing to POST to. Both are decided server-side; the page
+     never guesses. */
+  const n = total - done;
+  if(SUMMARIZE.can && n > 0){
+    const b = el('button', 'sumbtn',
+      done ? 'Summarise ' + n + ' more' : 'Summarise ' + n + ' conversation' + (n === 1 ? '' : 's'));
+    b.onclick = () => runSummarize(b);
+    w.appendChild(b);
+  }
+  return w;
+}
+
+/* Keep flags, env vars and paths on one line and in monospace. Wrapped
+   mid-token, `--summarize` renders as "-- summarize", which is not a thing
+   anyone can paste. Split rather than innerHTML: this text is ours, but the rule
+   that nothing here is built from a string of markup has no exceptions. */
+function noteText(text){
+  const frag = document.createDocumentFragment();
+  text.split(/(--[\w-]+|[A-Z_]{6,}|~?[\w./-]*\.env)/).forEach((part, i) => {
+    frag.appendChild(i % 2 ? el('span', 'nb', part) : document.createTextNode(part));
+  });
+  return frag;
+}
+
+async function runSummarize(btn){
+  summarizeState.busy = true; summarizeState.err = null; summarizeState.msg = null;
+  if(btn){ btn.disabled = true; btn.textContent = 'Summarising…'; }
+  paint();
+  try{
+    const r = await fetch('/summarize', {
+      method: 'POST', headers: {'X-Chatter-Token': SUMMARIZE.token || ''}});
+    const out = await r.json();
+    if(out.status === 'started'){
+      summarizeState.msg = 'Reading ' + out.n + ' conversation' + (out.n === 1 ? '' : 's') +
+        ' — about ' + out.tokens.toLocaleString() + ' input tokens, roughly $' +
+        out.usd.toFixed(2) + '.';
+    } else if(out.status === 'busy'){
+      summarizeState.msg = 'Already running.';
+    } else if(out.status === 'nothing'){
+      summarizeState.busy = false;
+    } else {
+      summarizeState.busy = false;
+      summarizeState.err = 'The server said: ' + (out.status || r.status) + '.';
+    }
+  }catch(e){
+    summarizeState.busy = false;
+    summarizeState.err = 'Could not reach the server.';
+  }
+  paint();
 }
 
 /* ---------- render: activity ----------

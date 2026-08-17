@@ -69,18 +69,21 @@ def main():
     # before the summaries arrived would be missing them permanently.
     summarizer = S.from_args(args)
     S.report(summarizer)
-    if summarizer:
+    # `auto`, not `ready`. A build has no button to press, so --summarize is the
+    # only way to ask for one here — and a summarizer is now constructed on every
+    # run, so gating on "a key exists" would spend money on a plain --build.
+    if summarizer.auto:
         # settle_s=0 — a frozen page is a snapshot of a moment, so there is no
         # later run to catch a conversation that was still in progress.
         summarizer.settle_s = 0
         summarizer.fill(data, progress=lambda m: print(m, file=sys.stderr, flush=True))
-        summarizer.attach(data)
+    summarizer.attach(data)
 
     title = args.title or data.get("title_hint") or R.DEFAULT_TITLE
     got = any(x.get("ai") for x in data.get("exchanges") or [])
     page = R.render(data, title=title, heading=args.heading,
                     subtitle=args.subtitle, feed=None, findings=findings,
-                    summary_note=S.note_for(args.summarize, summarizer, got))
+                    summarize=S.panel_config(summarizer, got, live=False))
     if not args.attention:
         page = R.strip_attention(page)
 

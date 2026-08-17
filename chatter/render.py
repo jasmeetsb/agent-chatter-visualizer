@@ -36,7 +36,7 @@ DEFAULT_SUBTITLE = (
 
 def render(data, *, title=DEFAULT_TITLE, heading=None, subtitle=DEFAULT_SUBTITLE,
            feed=None, poll_ms=2000, silence_s=600, findings=None,
-           summary_note=None):
+           summarize=None):
     """Return the complete page.
 
     data     — a snapshot dict {events, sessions, sources, snapshot_id, seq}, or
@@ -46,10 +46,9 @@ def render(data, *, title=DEFAULT_TITLE, heading=None, subtitle=DEFAULT_SUBTITLE
                can tag a message but cannot decide which exchange mattered, and a
                generator would produce confident nonsense. Scrubbed like anything
                else, because findings quote the transcript they describe.
-    summary_note — {"level", "text"} for the top of the insights panel, or None
-               when summaries are being generated and there is nothing to say.
-               `warn` is a failure, `info` is an invitation; see
-               summarize.note_for().
+    summarize — what the summaries panel needs to explain or offer itself:
+               {can, token, note, model}. See summarize.panel_config(). `token`
+               is only ever set for a live page, and only when a key is present.
     """
     findings = [
         {k: (scrub(v) if isinstance(v, str) else v) for k, v in f.items()}
@@ -67,8 +66,8 @@ def render(data, *, title=DEFAULT_TITLE, heading=None, subtitle=DEFAULT_SUBTITLE
             .replace("__DATA__", json.dumps(data, ensure_ascii=False) if data else "null")
             .replace("__FEED__", json.dumps(feed) if feed else "null")
             .replace("__FINDINGS__", json.dumps(findings, ensure_ascii=False))
-            .replace("__SUMMARYNOTE__",
-                     json.dumps(summary_note, ensure_ascii=False) if summary_note else "null")
+            .replace("__SUMMARIZE__",
+                     json.dumps(summarize or {}, ensure_ascii=False))
             .replace("__POLL__", str(int(poll_ms)))
             .replace("__SILENCE__", str(int(silence_s)))
             .replace("__TITLE__", html.escape(title))

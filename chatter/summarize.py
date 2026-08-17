@@ -119,22 +119,17 @@ NO_SDK_NOTE = (
     "pip install anthropic — or run: uvx --with anthropic agent-chatter "
     "--summarize. Everything below is still the participants' own words.")
 
-# Shown on a normal run, where nobody asked for anything. This started out
-# silent, on the reasoning that a tool nagging about an unconfigured optional
-# feature makes that feature everyone's problem. That was wrong in the only way
-# that matters: the flag is the single thing here you cannot discover by looking
-# at the page, so staying quiet meant the feature was invisible to exactly the
-# people it was built for. One muted line, once, in the panel it applies to.
-OFF_NO_KEY_NOTE = (
-    "Summaries are off. --summarize has Claude write an account of each "
-    "conversation instead of just the senders' headlines. It needs an "
-    "ANTHROPIC_API_KEY in a .env file, in the directory you run from or at "
-    "~/.config/agent-chatter/.env.")
+# Key is here and the server is live, so the panel can offer a button instead of
+# telling someone to restart with a flag. Short, because the button beside it is
+# the actual explanation.
+READY_NOTE = (
+    "Nothing summarised yet. Claude reads each conversation and writes what was "
+    "decided in it — this calls the API and costs money, billed to your key.")
 
-OFF_HAVE_KEY_NOTE = (
-    "Summaries are off. Add --summarize and Claude will write an account of "
-    "each conversation instead of just the senders' headlines — your API key is "
-    "already configured.")
+# Key is here but this is a frozen page, so there is nothing to press.
+STATIC_NOTE = (
+    "Nothing summarised yet. Rebuild with --summarize to have Claude write what "
+    "was decided in each conversation; it calls the API and costs money.")
 
 # Generating, but a cap left something out. Reported rather than silent: an
 # unmentioned limit cannot be told apart from the tool having judged those
@@ -330,7 +325,7 @@ class Summarizer:
     attach() publish the results; the page builder runs both and waits.
     """
 
-    def __init__(self, model=MODEL, cache=None, settle_s=SETTLE_S, generate=True,
+    def __init__(self, model=MODEL, cache=None, settle_s=SETTLE_S, auto=False,
                  limit=MAX_CONVERSATIONS, conv_chars=CONV_CHARS):
         self.model = model
         self.cache = cache if cache is not None else Cache()
@@ -346,15 +341,16 @@ class Summarizer:
         self.generated = 0
         self.key, self.key_from = resolve_key()
         self.client = None
-        self.note = None            # what to tell the reader, or None
-        self.available = False
+        self.note = None            # why it cannot generate, or None
 
-        # Cache-only mode. `--summary-cache` without `--summarize` reads a file
-        # somebody already generated and never calls anything — which is how the
-        # bundled demo shows this tier without a key, and how you can hand a
-        # colleague summaries you paid for once.
-        if not generate:
-            return
+        # `ready` and `auto` are different questions, and conflating them is why
+        # the flag used to be the only way in. `ready` means a key and the SDK
+        # are here, so generating is possible; `auto` means go ahead without
+        # being asked. A live server that is ready but not auto shows a button
+        # and spends nothing until it is pressed.
+        self.auto = auto
+        self.ready = False
+        self.shipped = False        # cache came from --summary-cache, not this run
 
         if not self.key:
             self.note = NO_KEY_NOTE
@@ -365,7 +361,7 @@ class Summarizer:
             self.note = NO_SDK_NOTE
             return
         self.client = anthropic.Anthropic(api_key=self.key)
-        self.available = True
+        self.ready = True
 
     # ---- reading ---------------------------------------------------------
 
@@ -423,7 +419,7 @@ class Summarizer:
 
     def fill(self, data, progress=None, workers=4):
         """Summarise everything not already cached. Returns (done, failed)."""
-        if not self.available:
+        if not self.ready:
             return 0, 0
         todo = self.pending(data)
         if not todo:
@@ -518,45 +514,53 @@ def _now():
     return time.time()
 
 
-def note_for(asked, summarizer=None, any_summaries=False):
-    """What the insights panel says above the entries, or None.
+def panel_config(summarizer, any_summaries, live, token=None):
+    """Everything the panel needs to explain or offer itself.
 
-    Returns {"level", "text"} — `warn` when someone asked for summaries and did
-    not get them, `info` when nothing is wrong and there is simply something they
-    may not know exists. Both render, and the distinction is the difference
-    between a failure and an invitation.
+        can    — a key and the SDK are here, so the button can do something
+        token  — required on POST /summarize; see server.py on why it exists
+        note   — {level, text} to show, or None
+        model  — named on each card, so the prose says who wrote it
 
-    Silent in exactly one case: summaries are being generated, so the panel is
-    already showing the thing this would be telling them about.
+    The panel is summaries or nothing, so when there are none this is the whole
+    of its content: either the reason it cannot generate, or the offer to.
     """
-    if summarizer is not None and summarizer.available:
-        # Generating. Silent unless the cap left something out — a limit nobody
-        # is told about reads as the tool having judged those conversations not
-        # worth summarising, which is the one thing it must never appear to do.
-        if summarizer.skipped:
-            return {"level": "info", "text": CAPPED_NOTE.format(
-                n=summarizer.skipped, limit=summarizer.limit)}
-        return None
+    ready = bool(summarizer and summarizer.ready)
+    cfg = {"can": bool(ready and live), "model": summarizer.model if summarizer else MODEL,
+           "token": token if (ready and live) else None, "note": None}
+
+    if summarizer and summarizer.skipped:
+        cfg["note"] = {"level": "info", "text": CAPPED_NOTE.format(
+            n=summarizer.skipped, limit=summarizer.limit)}
+        return cfg
     if any_summaries:
-        # Summaries on the page but nothing new will be added — the shipped demo
-        # cache, or a cache someone handed over.
-        if asked and summarizer is not None and summarizer.note:
-            return {"level": "warn", "text": summarizer.note}
-        return {"level": "info", "text": SHIPPED_NOTE}
-    if asked and summarizer is not None and summarizer.note:
-        return {"level": "warn", "text": summarizer.note}
-    return {"level": "info",
-            "text": OFF_HAVE_KEY_NOTE if resolve_key()[0] else OFF_NO_KEY_NOTE}
+        # Summaries are on the page. Say nothing unless there is something the
+        # reader would otherwise get wrong — the demo's shipped cache, which
+        # implies it came free.
+        if summarizer and summarizer.shipped:
+            cfg["note"] = {"level": "info", "text": SHIPPED_NOTE}
+        return cfg
+    if not ready:
+        # Nothing to show and no way to fix it from here. This is the whole panel.
+        cfg["note"] = {"level": "warn",
+                       "text": summarizer.note if summarizer else NO_KEY_NOTE}
+    elif live:
+        cfg["note"] = {"level": "info", "text": READY_NOTE}
+    else:
+        cfg["note"] = {"level": "info", "text": STATIC_NOTE}
+    return cfg
 
 
 def add_arguments(ap):
     """The two flags, defined once so every front end spells them the same."""
     ap.add_argument("--summarize", action="store_true",
-                    help="have Claude write a summary of each conversation. "
-                         "SENDS YOUR MESSAGE BODIES TO THE ANTHROPIC API AND "
-                         "COSTS MONEY, billed to your key, once per conversation "
-                         "— see --summarize-limit and --summarize-chars for the "
-                         "caps. Needs ANTHROPIC_API_KEY in a .env file.")
+                    help="summarise immediately, without waiting to be asked. "
+                         "On the live dashboard you do not need this — there is "
+                         "a button. SENDS YOUR MESSAGE BODIES TO THE ANTHROPIC "
+                         "API AND COSTS MONEY, billed to your key, once per "
+                         "conversation; see --summarize-limit and "
+                         "--summarize-chars. Needs ANTHROPIC_API_KEY in a .env "
+                         "file.")
     ap.add_argument("--summarize-model", default=MODEL, metavar="ID",
                     help=f"model for --summarize (default {MODEL})")
     ap.add_argument("--summarize-limit", type=int, default=MAX_CONVERSATIONS,
@@ -578,24 +582,31 @@ def add_arguments(ap):
 
 
 def from_args(args):
-    """A Summarizer if there is any reason to have one, else None."""
-    gen = bool(getattr(args, "summarize", False))
-    path = getattr(args, "summary_cache", None)
-    if not gen and not path:
-        return None
+    """Always a Summarizer. It is the thing that knows whether a key exists.
+
+    It used to be None unless a flag was passed, which meant the page could not
+    tell "no key" from "nobody asked" and the only way to generate anything was
+    to restart with the flag. Constructing one always costs a .env read.
+    """
     limit = getattr(args, "summarize_limit", MAX_CONVERSATIONS)
-    return Summarizer(model=getattr(args, "summarize_model", None) or MODEL,
-                      cache=Cache(path) if path else None, generate=gen,
-                      limit=MAX_CONVERSATIONS if limit is None else limit,
-                      conv_chars=getattr(args, "summarize_chars", CONV_CHARS))
+    path = getattr(args, "summary_cache", None)
+    s = Summarizer(model=getattr(args, "summarize_model", None) or MODEL,
+                   cache=Cache(path) if path else None,
+                   auto=bool(getattr(args, "summarize", False)),
+                   limit=MAX_CONVERSATIONS if limit is None else limit,
+                   conv_chars=getattr(args, "summarize_chars", CONV_CHARS))
+    # The demo hands over a cache somebody else generated. Remembered so the
+    # panel can say so rather than implying those summaries came free.
+    s.shipped = bool(path)
+    return s
 
 
 def report(summarizer, stream=sys.stderr):
-    """One line about where the key came from, or why there is none."""
-    if summarizer is None or summarizer.note is None and not summarizer.available:
-        return                      # cache-only: nothing was asked for
-    if summarizer.available:
+    """One line about what will happen, on the terminal that started it."""
+    if summarizer is None:
+        return
+    if summarizer.ready and summarizer.auto:
         print(f"agent-chatter: summarising with {summarizer.model} "
               f"(key from {summarizer.key_from})", file=stream, flush=True)
-    else:
+    elif not summarizer.ready and summarizer.auto:
         print(f"agent-chatter: {summarizer.note}", file=stream, flush=True)

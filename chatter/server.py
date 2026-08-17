@@ -18,6 +18,7 @@ import argparse
 import glob
 import json
 import os
+import secrets
 import sys
 import threading
 import time
@@ -46,6 +47,7 @@ class State:
                      "snapshot_id": None, "seq": 0}
         self.model = self._load_model()
         self.err = None
+        self.summarizing = False
 
     @staticmethod
     def _load_model():
@@ -78,6 +80,37 @@ class State:
         while True:
             self.rebuild()
             time.sleep(self.refresh)
+
+    def summarize_now(self):
+        """Run one fill on a worker thread. Returns what to tell the caller.
+
+        Never blocks the request: an API call takes seconds and a browser fetch
+        that hangs for that long looks broken. The results land in the cache, the
+        next rebuild attaches them, and the page's existing poll picks them up —
+        the same path the --summarize background loop already uses.
+        """
+        with self.lock:
+            if self.summarizing:
+                return {"status": "busy"}
+            data = self.data
+            todo = self.summarizer.pending(data)
+            if not todo:
+                return {"status": "nothing"}
+            self.summarizing = True
+            chars, tokens, usd = self.summarizer.estimate(todo)
+
+        def run():
+            try:
+                self.summarizer.fill(data, progress=_progress)
+            except Exception as exc:
+                _progress(f"summariser: {type(exc).__name__}: {exc}")
+            finally:
+                with self.lock:
+                    self.summarizing = False
+                self.rebuild()          # publish immediately rather than waiting
+        threading.Thread(target=run, daemon=True).start()
+        return {"status": "started", "n": len(todo), "tokens": tokens,
+                "usd": round(usd, 2)}
 
     def summarize_loop(self):
         """Generate summaries off the serving path.
@@ -115,10 +148,11 @@ class State:
                     "exchanges": d.get("exchanges", []),
                     "exchange_gap_s": d.get("exchange_gap_s"),
                     "snapshot_id": d["snapshot_id"], "seq": d.get("seq", 0),
+                    "summarizing": self.summarizing,
                     "error": self.err}
 
 
-def handler_for(state, page):
+def handler_for(state, page, token):
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body, ctype):
             raw = body.encode("utf-8")
@@ -146,6 +180,28 @@ def handler_for(state, page):
                 return self._send(200, json.dumps(state.since(seq), ensure_ascii=False),
                                   "application/json; charset=utf-8")
             self._send(404, "not found", "text/plain; charset=utf-8")
+
+        def do_POST(self):
+            """The one endpoint that spends money.
+
+            Guarded by a per-process token that only the page we served carries.
+            The server binds localhost, but localhost is reachable by every page
+            in the user's browser, and a cross-origin script can POST here even
+            though it cannot read the response. Without the token, any page they
+            happened to have open could run up a bill on their key. Same-origin
+            policy stops that page ever seeing the token, so requiring it is
+            enough — no CORS headers are sent, deliberately.
+            """
+            if urlparse(self.path).path != "/summarize":
+                return self._send(404, "not found", "text/plain; charset=utf-8")
+            if not token or self.headers.get("X-Chatter-Token") != token:
+                return self._send(403, json.dumps({"status": "forbidden"}),
+                                  "application/json; charset=utf-8")
+            if not (state.summarizer and state.summarizer.ready):
+                return self._send(409, json.dumps({"status": "not-configured"}),
+                                  "application/json; charset=utf-8")
+            out = state.summarize_now()
+            self._send(200, json.dumps(out), "application/json; charset=utf-8")
 
         def log_message(self, *a):                     # quiet; this runs in a terminal
             pass
@@ -188,23 +244,26 @@ def main():
     state = State(args.transcripts, args.watch, args.refresh, summarizer)
     state.rebuild()
     threading.Thread(target=state.loop, daemon=True).start()
-    if summarizer and summarizer.available:
+    # Only --summarize generates unasked. Without it the key is still resolved,
+    # the button is offered, and nothing is spent until it is pressed.
+    if summarizer.ready and summarizer.auto:
         threading.Thread(target=state.summarize_loop, daemon=True).start()
 
     # state.rebuild() has already run, so the hint reflects what was actually
     # loaded rather than what was asked for on the command line.
     title = args.title or state.data.get("title_hint") or R.DEFAULT_TITLE
     got = any(x.get("ai") for x in state.data.get("exchanges") or [])
-    if summarizer and summarizer.available:
+    if summarizer.ready and summarizer.auto:
         # Prime summarizer.skipped so the page can say what the cap left out. The
         # page is rendered once, at startup, and generation happens later on the
         # background thread — without this the note would always report zero.
         # Costs nothing: pending() only builds strings and reads the cache.
         summarizer.pending(state.data)
+    token = secrets.token_urlsafe(24)
     page = R.render(None, title=title, feed="/feed", findings=findings,
                     poll_ms=args.poll, silence_s=args.silence,
-                    summary_note=S.note_for(args.summarize, summarizer, got))
-    srv = ThreadingHTTPServer((args.host, args.port), handler_for(state, page))
+                    summarize=S.panel_config(summarizer, got, live=True, token=token))
+    srv = ThreadingHTTPServer((args.host, args.port), handler_for(state, page, token))
     n = len(state.sources())
     # flush: when this is backgrounded with output redirected, stdout is a pipe
     # and block-buffered, so the banner never appears and it looks like nothing
