@@ -8,6 +8,7 @@
   <a href="#60-seconds-to-a-dashboard">Quick start</a> ·
   <a href="#what-you-get">What you get</a> ·
   <a href="#running-it-on-your-own-sessions">Your sessions</a> ·
+  <a href="#working-from-a-clone">From a clone</a> ·
   <a href="#use-it-as-a-library">Library</a>
 </p>
 
@@ -61,13 +62,17 @@ sessions coordinating a database migration. No real transcript was used.</sub>
 uvx --from git+https://github.com/jasmeetsb/agent-chatter-visualizer agent-chatter --demo
 ```
 
-**Or clone it:**
+**Or clone it** — nothing to install here either:
 
 ```bash
 git clone https://github.com/jasmeetsb/agent-chatter-visualizer.git
 cd agent-chatter-visualizer
 ./agent-chatter --demo
 ```
+
+> From a clone the command is `./agent-chatter` (with the `./`, run from the
+> repository directory). Installed, it is just `agent-chatter` from anywhere.
+> Every example below uses the installed form; add `./` if you cloned.
 
 Open **http://127.0.0.1:8787**. `Ctrl-C` stops it.
 
@@ -257,7 +262,37 @@ agent-chatter --findings findings.json
 
 ---
 
+## Working from a clone
+
+A clone needs no install step and no virtualenv — it is standard library Python:
+
+```bash
+git clone https://github.com/jasmeetsb/agent-chatter-visualizer.git
+cd agent-chatter-visualizer
+
+./agent-chatter --demo            # the bundled example
+./agent-chatter --list            # your own transcripts
+./agent-chatter                   # serve them
+```
+
+To check nothing is broken after a change:
+
+```bash
+./tools/verify-fixture.py         # asserts every parser case is still covered
+```
+
+The fixture is the test suite. It deliberately contains a fabricated message, a
+session rename, both delivery modes, an unpaired message in each direction and a
+planted credential, so a change that breaks one of those fails loudly. Regenerate
+it with `./tools/make-fixture.py` after editing the generator — do not hand-edit
+the JSONL.
+
+`AGENTS.md` documents the rules that are not style preferences, and is worth
+reading before changing anything in `chatter/`.
+
 ## Use it as a library
+
+Installed, or from a clone directory:
 
 ```python
 from chatter import model, discover
