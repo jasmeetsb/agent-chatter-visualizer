@@ -38,15 +38,10 @@ sessions coordinating a database migration. No real transcript was used.</sub>
 > [!WARNING]
 > **Experimental. Use at your own discretion.**
 >
-> This is a personal project, not a supported product. It reads a transcript
-> format that is undocumented and can change without notice, so a Claude Code
-> update may break parsing or make it quietly wrong. There are no tests beyond a
-> fixture, no stability guarantees, and the interface may change at any time.
->
-> It only ever **reads** your transcripts — it never writes to or deletes them —
-> but anything it renders came out of a session, and **a session transcript
-> contains everything ever pasted into it**. Output is scrubbed for credentials
-> and usernames, and that scrub is a best effort, not a guarantee. Read
+> This is a personal project, not a supported product. Anything it renders came
+> out of a session, and **a session transcript contains everything ever pasted
+> into it**. Output is scrubbed for credentials and usernames, and that scrub is
+> a best effort, not a guarantee. Read
 > [before you publish a page](#before-you-publish-a-page) and check the output
 > yourself before sharing it.
 >
