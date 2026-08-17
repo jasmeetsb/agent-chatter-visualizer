@@ -56,6 +56,7 @@ header{border-bottom:1px solid var(--line);background:var(--surface)}
 .mast{padding:28px 0 22px;display:flex;flex-wrap:wrap;gap:22px;align-items:flex-end;justify-content:space-between}
 .sub{margin:8px 0 0;color:var(--muted);max-width:64ch;font-size:14px}
 .livebox{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}
+.projsel{padding:5px 9px;max-width:220px}
 .theme{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;
   background:var(--surface);color:var(--muted);font:inherit;font-size:11.5px;padding:5px 11px;
   cursor:pointer;white-space:nowrap}
@@ -141,6 +142,8 @@ section{margin:30px 0}
 .ins .q{margin:3px 0 0;font-size:12.3px;line-height:1.5;color:var(--ink-2)}
 .ins .t{font-size:10.5px;color:var(--faint);margin-top:3px}
 .xch{border-top:1px solid var(--line-2);padding:12px 0 4px;margin:0}
+.xch.clickable{cursor:pointer}
+.xch.clickable:hover .xt{color:var(--s1)}
 .xch:first-of-type{border-top:0}
 .xh{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .xt{font-size:12px;font-weight:640;color:var(--ink)}
@@ -246,6 +249,7 @@ footer{border-top:1px solid var(--line);padding:18px 0 40px;color:var(--faint);f
     <div class="livebox">
       <span class="pulse off" id="pulse"></span>
       <span id="livetext">static snapshot</span>
+      <select id="projsel" class="theme projsel" aria-label="Filter by project" hidden></select>
       <button id="humans" class="theme" type="button"
         title="Show or hide the human turns; agent-to-agent traffic is always shown"></button>
       <button id="theme" class="theme" type="button" title="Switch between automatic, light and dark"></button>
@@ -443,9 +447,20 @@ function derive(){
   // — enough to dominate the activity chart and the message list while answering
   // a different question. The toggle is in the header for when you want the
   // steering back in view.
+  // Project filter alongside the human filter, applied in the one place every
+  // panel reads from. Everything is loaded; narrowing is a question you answer
+  // while looking rather than before you can see what is there.
+  const srcProject = {};
+  (store.sources || []).forEach(x => { srcProject[x.id] = x.project || ''; });
   const events = [...store.events.values()]
-    .filter(e => ui.humans || e.kind !== 'human');
-  const ids = Object.keys(store.sessions).sort();
+    .filter(e => ui.humans || e.kind !== 'human')
+    .filter(e => !ui.project || srcProject[e.src_id] === ui.project);
+  // Sessions in scope are the ones the filtered events actually involve. Taking
+  // every key from the store meant the graph kept drawing nodes for projects the
+  // reader had just filtered out.
+  const present = new Set();
+  events.forEach(e => { if(e.from_id) present.add(e.from_id); if(e.to_id) present.add(e.to_id); });
+  const ids = Object.keys(store.sessions).filter(id => present.has(id)).sort();
   const colour = {};
   /* Colour carries IDENTITY only. A session we hold no transcript for used to be
      greyed, which overloads one channel with two meanings — and grey reads as
@@ -881,7 +896,10 @@ function renderInsights(d){
     box.appendChild(h);
   }
 
-  const xs = store.exchanges || [];
+  const inScope = new Set((store.sources || [])
+    .filter(x => !ui.project || x.project === ui.project).map(x => x.id));
+  const xs = (store.exchanges || []).filter(x =>
+    !ui.project || !x.srcs || !x.srcs.length || x.srcs.some(sid => inScope.has(sid)));
   if(!xs.length){
     box.appendChild(el('p', 'none',
       'No agent-to-agent conversation yet. Entries appear once two sessions ' +
@@ -892,6 +910,11 @@ function renderInsights(d){
   xs.slice(0, 12).forEach(x => {
     const card = el('div', 'xch');
     const head = el('div', 'xh');
+    if(x.id){
+      card.classList.add('clickable');
+      card.title = 'Open the message this conversation started with';
+      card.onclick = ev => { if(!ev.target.closest('.ins, .xlist li')) jumpTo(x.id); };
+    }
     const span = dur(x.start, x.end);
     head.appendChild(el('span', 'xt', absTime(x.start) + ' – ' + absTime(x.end)));
     head.appendChild(el('span', 'xn',
@@ -1059,7 +1082,7 @@ function renderLatency(d){
 }
 
 /* ---------- render: stream ---------- */
-const ui = {showAll:false, session:null, q:'', open:new Set(), humans:false};
+const ui = {showAll:false, session:null, q:'', open:new Set(), humans:false, project:''};
 try{ ui.humans = localStorage.getItem('agent-chatter-humans') === '1'; }catch(e){}
 
 function renderChips(d){
@@ -1216,6 +1239,7 @@ function renderStream(d, now){
 function paint(){
   const now = Date.now();
   const d = derive();
+  renderProjects();
   renderTiles(d, now);
   renderActivity(d);
   renderAlerts(d, now);
@@ -1311,6 +1335,42 @@ function applyTheme(id){
   }
   try{ localStorage.setItem('agent-chatter-theme', id); }catch(e){}
 }
+
+function renderProjects(){
+  const sel = document.getElementById('projsel');
+  if(!sel) return;
+  const names = [...new Set((store.sources || []).map(x => x.project).filter(Boolean))].sort();
+  // One project is not a choice; the control only earns its place with several.
+  sel.hidden = names.length < 2;
+  // Only forget the saved choice when we KNOW there is nothing to choose. The
+  // first paint happens before the feed has answered, and clearing here threw
+  // the selection away on every reload.
+  if(sel.hidden){
+    if(names.length === 1) ui.project = '';
+    return;
+  }
+  if(sel.dataset.built === names.join('|')) return;      // rebuild only on change
+  sel.dataset.built = names.join('|');
+  clear(sel);
+  const all = document.createElement('option');
+  all.value = ''; all.textContent = 'All projects (' + names.length + ')';
+  sel.appendChild(all);
+  names.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  });
+  sel.value = ui.project;
+  sel.onchange = () => {
+    ui.project = sel.value;
+    try{ localStorage.setItem('agent-chatter-project', ui.project); }catch(e){}
+    paint();
+  };
+}
+
+(function initProject(){
+  try{ ui.project = localStorage.getItem('agent-chatter-project') || ''; }catch(e){}
+})();
 
 (function initHumans(){
   const btn = document.getElementById('humans');

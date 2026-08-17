@@ -83,25 +83,18 @@ def resolve(args):
         print(discover.describe(rows), file=sys.stderr)
         sys.exit(1)
 
-    # Never merge unrelated projects without being asked. Conversations from
-    # different projects on one page are not a mesh, they are two meshes drawn on
-    # top of each other: shared nothing, unrelated timelines, and a graph whose
-    # components have no reason to be beside each other. If the traffic spans
-    # more than one project, say which and let the caller choose.
+    # Load everything by default and let the page filter. Splitting projects at
+    # the command line meant deciding before you could see what was there;
+    # narrowing is a question you answer while looking, so the selector lives in
+    # the page. Naming a project still loads only that one, which is what you
+    # want when the page is going to be published or the transcripts are large.
     projects = sorted({os.path.basename(os.path.dirname(r[0])) for r in rows})
-    if len(projects) > 1 and not (args.project or args.all_projects):
-        lines = [f"Found conversations in {len(projects)} projects:", ""]
-        for proj in projects:
-            hits = [r for r in rows if os.path.basename(os.path.dirname(r[0])) == proj]
-            total = sum(r[1] for r in hits)
-            lines.append(f"  {total:>4} messages   {proj}")
-            lines.append(f"               {_project_flag(proj, projects)}")
-        lines += ["", "Pick one with --project, or merge them all with --all."]
-        sys.exit("\n".join(lines))
-
-    scope = args.project or (projects[0] if projects else "")
-    label = f"{len(rows)} transcript(s)" + (f" in {scope}" if scope and not args.all_projects
-                                            else " across all projects")
+    if args.project:
+        label = f"{len(rows)} transcript(s) in {args.project}"
+    elif len(projects) > 1:
+        label = f"{len(rows)} transcript(s) across {len(projects)} projects"
+    else:
+        label = f"{len(rows)} transcript(s)"
     return [r[0] for r in rows], label
 
 
@@ -117,8 +110,8 @@ def main():
     ap.add_argument("--list", action="store_true", help="show what was found and exit")
     ap.add_argument("--demo", action="store_true", help="use the bundled example")
     ap.add_argument("--all", dest="all_projects", action="store_true",
-                    help="merge every project onto one page (default is to ask "
-                         "when the traffic spans more than one)")
+                    help=argparse.SUPPRESS)   # now the default; accepted so old
+                                              # invocations keep working
     ap.add_argument("--project", metavar="NAME",
                     help="only this project: a path to it, its folder name, "
                          "or any distinctive part of the name")

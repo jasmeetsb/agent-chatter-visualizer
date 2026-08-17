@@ -73,6 +73,21 @@ _SLUG = re.compile(r"-(home|Users)-(?!redacted-)[^/\s\"'\\]+?-")
 _PROMPT = re.compile(r"\b([\w.-]+)@([\w.-]+):(?=[~/])")
 
 
+_PROJ_PREFIX = re.compile(r"^-(?:home|Users)-[^-]+-")
+
+
+def project_label(slug):
+    """A readable name for a project directory, with the user's name removed.
+
+    Claude Code names the directory by flattening the project path, so the raw
+    value is `-home-<username>-work-api`. Strip the part that names a person and
+    keep the part that names the work.
+    """
+    if not slug:
+        return ""
+    return _PROJ_PREFIX.sub("", slug).strip("-") or slug.strip("-")
+
+
 def unhome(text):
     if not text:
         return text
@@ -596,6 +611,7 @@ def exchanges(events):
         out.append({
             "id": evs[0]["id"],
             "who": who,
+            "srcs": sorted({e.get("src_id") for e in evs if e.get("src_id")}),
             "start": evs[0].get("sent") or evs[0].get("enqueued") or evs[0].get("delivered"),
             "end": evs[-1].get("delivered") or evs[-1].get("sent") or evs[-1].get("enqueued"),
             "n": len(evs),
@@ -882,8 +898,12 @@ def build(paths):
         _STATE["snapshot"] += 1
     _STATE["prev"] = digests
 
-    sources = [{"id": s.sid, "name": (s.name or os.path.basename(s.path))}
+    sources = [{"id": s.sid, "name": (s.name or os.path.basename(s.path)),
+                "project": project_label(os.path.basename(os.path.dirname(s.path)))}
                for s in live]
+    by_src = {x["id"]: x["project"] for x in sources}
+    for meta in sessions.values():
+        meta["project"] = by_src.get(meta.get("src_id"), "")
 
     xchg, thresh = exchanges(events)
     out = {"events": events, "sessions": sessions, "sources": sources,
