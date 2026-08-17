@@ -51,19 +51,40 @@ cd agent-chatter-visualizer
 ./agent-chatter --demo
 ```
 
-Open **http://127.0.0.1:8787**.
+Open **http://127.0.0.1:8787**. `Ctrl-C` stops it.
 
 That is the whole setup — no dependencies, no build step, no configuration.
 Standard library Python 3.9+.
 
-Then point it at your own sessions:
+**Then point it at your own sessions:**
 
 ```bash
-agent-chatter
+agent-chatter --list     # what's there, without starting anything
+agent-chatter            # serve it
 ```
 
-It finds your transcripts, works out which ones carry cross-session traffic, and
-serves them. Nothing to configure, nothing to look up.
+It finds your transcripts, works out which of them carry cross-session traffic,
+and serves them. Nothing to configure, nothing to look up.
+
+<details>
+<summary><b>"No transcripts with cross-session traffic found"</b></summary>
+
+That message means the tool worked and there is genuinely nothing to show yet —
+you have not had two Claude Code sessions message each other on this machine.
+It reads `~/.claude/projects/`, keeps only transcripts that actually contain
+peer traffic, and says so rather than rendering an empty page.
+
+Three things to try:
+
+```bash
+agent-chatter --demo                   # the bundled example, always works
+agent-chatter --project <dir>          # if your transcripts live elsewhere
+agent-chatter ~/somewhere/*.jsonl      # point at files directly
+```
+
+If agents on *another* machine have been talking to this one, their transcripts
+are on that machine — see [two agents on two machines](#two-agents-on-two-machines).
+</details>
 
 ---
 
