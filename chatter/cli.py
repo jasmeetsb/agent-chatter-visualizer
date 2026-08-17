@@ -56,7 +56,11 @@ def resolve(args):
 def main():
     ap = argparse.ArgumentParser(
         description="Dashboard for conversations between Claude Code sessions.",
-        epilog="With no arguments it finds your transcripts and serves them.")
+        epilog="With no arguments it finds your transcripts and serves them.\n\n"
+               "EXPERIMENTAL: this reads an undocumented transcript format that "
+               "can change without notice. It only ever reads your transcripts, "
+               "never writes to them, but output is scrubbed on a best-effort "
+               "basis — check anything before you share it. No warranty.")
     ap.add_argument("paths", nargs="*", help="transcripts (default: discover them)")
     ap.add_argument("--list", action="store_true", help="show what was found and exit")
     ap.add_argument("--demo", action="store_true", help="use the bundled example")
