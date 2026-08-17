@@ -24,6 +24,7 @@ that no output from that check means it did not run.
 """
 import argparse
 import os
+import re
 import sys
 
 from . import model
@@ -100,6 +101,27 @@ def render(data, title):
     return "\n".join(out) + "\n"
 
 
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def visible_controls(text):
+    """Escape control bytes so the log stays a text file.
+
+    render.py REFUSES to emit a NUL, because there it can only come from the
+    template and the author can fix it. Here it comes from a message body and
+    refusing would mean the log cannot be written at all, so the byte is escaped
+    instead — same goal, different remedy.
+
+    Why it matters: one NUL anywhere makes grep classify the whole file as
+    binary, and the credential scan this repo tells you to run before sharing
+    then matches nothing and looks clean. Found by grepping a real log and
+    getting silence — the byte came from a message discussing this very bug,
+    which had been fixed for the HTML path and never for this one. Tab and the
+    newlines are left alone; they are the only control characters markdown wants.
+    """
+    return _CONTROL.sub(lambda m: "\\x%02x" % ord(m.group(0)), text)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("transcripts", nargs="+")
@@ -119,7 +141,7 @@ def main():
     if not data["events"]:
         sys.exit("no peer messages found")
 
-    text = render(data, args.title)
+    text = visible_controls(render(data, args.title))
 
     # Bodies are already scrubbed by the model. Assert rather than trust: this
     # file gets committed, and a silent regression here costs a credential.

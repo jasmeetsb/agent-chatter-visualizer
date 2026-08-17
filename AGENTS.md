@@ -108,8 +108,17 @@ message bodies are written by other agents and can contain anything. Never
 **A CSS rule beats a presentation attribute.** Setting `fill="#fff"` on SVG text
 does nothing when the stylesheet carries `text{fill:…}`. Use an inline style.
 
-**No raw control bytes in the template.** A NUL makes the file binary, which
-silently disables the credential grep above. `render.py` refuses to emit one.
+**No raw control bytes in ANY output.** A NUL makes the file binary, which
+silently disables the credential grep above. `render.py` refuses to emit one —
+there it can only come from the template, so the author can fix it. `mdlog.py`
+escapes instead, because there the byte arrives inside a message body and
+refusing would mean the log cannot be written at all.
+
+That second half was missing for a long time, and the way it surfaced is the
+argument for having it: a real markdown log turned out to be un-greppable, and
+the NUL in it came from a message *discussing this very bug*. The HTML path had
+been guarded; the markdown path, which the README also tells you to grep, never
+was.
 
 **`hidden` loses to any rule that sets `display`.** It is a presentation hint,
 not a guarantee, so a `.theme` control with `hidden` set still laid out — the
