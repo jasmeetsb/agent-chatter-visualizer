@@ -25,7 +25,7 @@ once, or that a plausible implementation gets wrong:
  11  ordinal desync            three identical bodies, recipient loses the middle
  12  legacy encoding           tag-shaped record with neither origin nor queue-op
  13  bare-string content       message.content as a str rather than a list
- 14  credential                a token in a body, to prove the scrub fires
+ 14  credentials               two token shapes in a body, to prove the scrub fires
 
 Regenerate with:
 
@@ -264,10 +264,16 @@ B6 = ("Agreed, and adopting your number. Adding it as a warning rather than a "
       "note, because the obvious "
       "optimisation is the dangerous one. Production run is scheduled.")
 
-# Case 14: a fictional credential, so the scrubber is exercised end to end.
+# Case 14: fictional credentials, so the scrubber is exercised end to end. Two
+# shapes, because they fail differently. The GitHub token has an underscore and
+# an unbroken alphanumeric run; the Anthropic key is DASHED, and an `sk-` rule
+# that only accepts alphanumerics after the prefix misses it silently — which is
+# what this scrubber did until --summarize made that the key people are told to
+# keep on disk.
 B7 = ("Pasting the staging export config so you have it:\n"
       "  export GH_TOKEN=ghp_EXAMPLEFAKETOKEN0123456789abcdefXY\n"
-      "Rotate it after the run — it is scoped to the migration bucket only.")
+      "  export ANTHROPIC_API_KEY=sk-ant-api03-EXAMPLEFAKEKEY0123456789abcdefXY\n"
+      "Rotate them after the run — both are scoped to the migration bucket only.")
 
 B8 = ("Root cause was the index rebuild, not the batched writes. Canary held at "
       "2% for the full window, p99 moved 3ms. Clearing the "

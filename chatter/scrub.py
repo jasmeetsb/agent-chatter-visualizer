@@ -23,8 +23,17 @@ import re
 SECRET = re.compile(
     rb"(AIza[0-9A-Za-z_\-]{30,45}"                 # Google API keys
     rb"|ya29\.[0-9A-Za-z_\-\.]{20,}"               # Google OAuth access tokens
-    rb"|sk-[A-Za-z0-9]{20,}"                       # OpenAI-style keys
+    # `sk-` keys, INCLUDING the dashed ones. This rule used to read
+    # `sk-[A-Za-z0-9]{20,}`, which looks like it covers sk-ant-… and sk-proj-…
+    # and does not: the run has to start immediately after `sk-`, so a real key
+    # reading sk-ant-api03-<base64ish> stops dead at the first dash and was never
+    # matched. Found while adding --summarize, which asks people to keep an
+    # Anthropic key in a file — the shape the tool now most encourages you to
+    # have lying around was the one shape it would have published. Twenty
+    # characters is still long enough that prose about a key does not trip it.
+    rb"|sk-[A-Za-z0-9_\-]{20,}"                    # Anthropic, OpenAI, and friends
     rb"|gh[pousr]_[A-Za-z0-9]{20,}"                # GitHub tokens
+    rb"|xox[baprs]-[A-Za-z0-9\-]{10,}"             # Slack tokens
     rb"|-----BEGIN [A-Z ]*PRIVATE KEY-----)"       # PEM private keys
 )
 

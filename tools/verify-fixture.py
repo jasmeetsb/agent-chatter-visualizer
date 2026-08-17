@@ -219,8 +219,14 @@ def main():
     blob = ""
     for s in ("alpha", "beta", "gamma"):
         blob += open(os.path.join(MESH, f"{s}.jsonl"), errors="replace").read()
+    # Both shapes. The dashed one is here because the scrubber's `sk-` rule once
+    # required alphanumerics straight after the prefix, so it matched neither
+    # sk-ant-… nor sk-proj-…. A fixture carrying only the easy shape cannot tell
+    # you the hard one regressed.
     check("14 a credential is present for scrub() to catch",
           bool(re.search(r"gh[pousr]_[A-Za-z0-9]{20,}", blob)))
+    check("14b a DASHED sk- key is present too",
+          bool(re.search(r"sk-ant-[A-Za-z0-9_-]{16,}", blob)))
 
     # dwell regimes — both must be present and must NOT be separable by threshold
     def dwell(rows):
