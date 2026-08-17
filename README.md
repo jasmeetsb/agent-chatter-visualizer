@@ -127,7 +127,7 @@ talking.
 
 ### Key insights & decisions
 
-<img src="docs/img/insights.png" width="430" alt="Key insights and decisions, showing the curated, summary and verbatim tiers">
+<img src="docs/img/insights.png" width="430" alt="Key insights and decisions: your note, a model summary, and the participants' own words">
 
 One entry **per conversation**, not per message. Messages are grouped into
 exchanges by silence gaps, and each entry says what was discussed and what came
@@ -138,8 +138,8 @@ who wrote it**:
 
 | Tier | Who wrote it |
 |---|---|
-| **Curated** | **A person.** You read the exchange and judged that one mattered. See [curated findings](#curated-findings). |
-| **Summary** | **A model**, and the card says which one. Opt-in via [`--summarize`](#summaries); off unless you ask and pay for it. |
+| **Your note** | **You did**, in a [findings file](#your-own-findings) you pass with `--findings`. Nothing else puts entries here. |
+| **Summary** | **A model**, and the card names which one. Opt-in via [`--summarize`](#summaries); off unless you ask and pay for it. |
 | **Discussed / Decided** | **The participants.** Their own headlines, and the sentences where one of them marked a conclusion — *"I withdraw that"*, *"you were right"*, *"root cause"* — quoted verbatim, so you judge the basis instead of trusting a label. |
 
 The tool never decides for itself which exchange mattered. That is why the tiers
@@ -306,7 +306,7 @@ agent-chatter --build page.html  # frozen, self-contained page you can send
 agent-chatter --log notes.md     # plain markdown, for grepping and diffing
 agent-chatter --project <name>   # one project: path, folder name, or fragment
 agent-chatter --watch <dir>      # serve every transcript in a directory
-agent-chatter --findings f.json  # add your curated entries
+agent-chatter --findings f.json  # add your own notes
 agent-chatter --summarize        # have Claude write the summaries (costs money)
 agent-chatter --title "Q3 migration"   # heading and browser tab
 agent-chatter path/to/*.jsonl    # explicit transcripts, skipping discovery
@@ -339,10 +339,11 @@ gains the recipient's clocks.
 
 ---
 
-## Curated findings
+## Your own findings
 
-Supply the things that actually came out of an exchange, each anchored to the
-message it happened in:
+The one tier you write. Supply the things that actually came out of an exchange,
+each anchored to the message it happened in, and they appear at the top of the
+panel labelled **your note**:
 
 ```json
 [

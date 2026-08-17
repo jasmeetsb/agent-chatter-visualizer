@@ -20,7 +20,7 @@ own tier, labelled with the model that wrote it, kept separate from the verbatim
 participant quotes beside it and from the curated entries a person wrote. Three
 tiers, three authors, never blended:
 
-    curated    a person judged this          (--findings)
+    your note  a person judged this          (--findings)
     generated  a model wrote this            (--summarize, this module)
     surfaced   a participant said this       (verbatim, always free)
 
@@ -136,14 +136,17 @@ OFF_HAVE_KEY_NOTE = (
     "each conversation instead of just the senders' headlines — your API key is "
     "already configured.")
 
-# The demo, which ships its summaries so the tier is visible without a key. Say
-# so, or the one page most people see first quietly implies it came free.
+# Generating, but a cap left something out. Reported rather than silent: an
+# unmentioned limit cannot be told apart from the tool having judged those
+# conversations not worth summarising.
 CAPPED_NOTE = (
     "The {n} oldest conversation(s) were not summarised. This run summarises at "
     "most {limit} of them, newest first, so a long history does not become a "
     "large bill — and leaving the dashboard open does not keep spending. Raise "
     "it with --summarize-limit, or pass 0 for all of them.")
 
+# The demo, which ships its summaries so the tier is visible without a key. Say
+# so, or the one page most people see first quietly implies it came free.
 SHIPPED_NOTE = (
     "These summaries ship with the demo, already generated. On your own "
     "transcripts --summarize writes them, which needs an ANTHROPIC_API_KEY in a "

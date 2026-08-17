@@ -147,7 +147,7 @@ section{margin:30px 0}
 .ins[data-kind="reversed"]{--bar:var(--critical)}
 .ins[data-kind="decided"]{--bar:var(--good)}
 .ins[data-kind="found"]{--bar:var(--s1)}
-.ins[data-kind="curated"]{--bar:var(--ink)}
+.ins[data-kind="yours"]{--bar:var(--ink)}
 .ins .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--bar)}
 .ins .who{font-size:10.5px;color:var(--faint);margin-left:6px}
 .ins .q{margin:3px 0 0;font-size:12.3px;line-height:1.5;color:var(--ink-2)}
@@ -938,8 +938,13 @@ function renderInsights(d){
 
   const curated = (FINDINGS || []);
   if(curated.length){
-    const h = el('div', 'ins'); h.setAttribute('data-kind', 'curated');
-    h.appendChild(el('div', 'k', 'curated'));
+    /* Named for who wrote it, like the two tiers below — "written by
+       claude-opus-5" on a summary, the participant's own name on a quote. This
+       one used to read "curated", which names a process rather than an author
+       and left the one human-written tier as the only one that did not say whose
+       words they were. */
+    const h = el('div', 'ins'); h.setAttribute('data-kind', 'yours');
+    h.appendChild(el('div', 'k', 'your note'));
     curated.slice(0, 4).forEach(f => {
       const line = el('p', 'q', (f.title || '') + (f.body ? ' — ' + f.body : ''));
       if(f.event){ line.style.cursor = 'pointer'; line.onclick = () => jumpTo(f.event); }
