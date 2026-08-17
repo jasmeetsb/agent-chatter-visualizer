@@ -46,7 +46,10 @@ def resolve(args):
             if os.path.exists(SAMPLE_FINDINGS):
                 args.findings = SAMPLE_FINDINGS
         return DEMO, "the bundled example"
-    rows = discover.find(project=args.project)
+    try:
+        rows = discover.find(project=args.project)
+    except ValueError as exc:
+        sys.exit(str(exc))
     if not rows:
         print(discover.describe(rows), file=sys.stderr)
         sys.exit(1)
@@ -64,7 +67,9 @@ def main():
     ap.add_argument("paths", nargs="*", help="transcripts (default: discover them)")
     ap.add_argument("--list", action="store_true", help="show what was found and exit")
     ap.add_argument("--demo", action="store_true", help="use the bundled example")
-    ap.add_argument("--project", help="limit discovery to one project directory")
+    ap.add_argument("--project", metavar="NAME",
+                    help="only this project: a path to it, its folder name, "
+                         "or any distinctive part of the name")
     ap.add_argument("--watch", metavar="DIR",
                     help="serve every transcript in DIR, re-reading as files appear "
                          "— the cross-machine workflow, where you rsync both sides "
@@ -77,7 +82,10 @@ def main():
     args, extra = ap.parse_known_args()
 
     if args.list:
-        rows = discover.find(project=args.project)
+        try:
+            rows = discover.find(project=args.project)
+        except ValueError as exc:
+            sys.exit(str(exc))
         print(discover.describe(rows))
         return
 

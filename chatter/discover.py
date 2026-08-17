@@ -31,10 +31,45 @@ _MARKERS = (b'"kind": "peer"', b'"kind":"peer"',
 DEFAULT_ROOT = os.path.expanduser("~/.claude/projects")
 
 
+def resolve_project(project, root=None):
+    """Turn whatever the user typed into a project directory name.
+
+    Claude Code names a project directory by flattening its path with dashes, so
+    the real directory for ~/work/api is `-home-you-work-api`. Nobody types that,
+    and it begins with a dash, so passing it as an option value is awkward too.
+    Accept the three things someone would actually reach for — a path to the
+    project, the project's folder name, or any distinctive part of it — and match
+    them against the directories that exist.
+    """
+    if not project:
+        return None
+    root = root or DEFAULT_ROOT
+    have = sorted(d for d in os.listdir(root)) if os.path.isdir(root) else []
+
+    if project in have:                       # already the directory name
+        return project
+    # a filesystem path, flattened the way Claude Code flattens it
+    expanded = os.path.abspath(os.path.expanduser(project))
+    flat = expanded.replace(os.sep, "-")
+    if flat in have:
+        return flat
+    # otherwise, a distinctive fragment: "api", "my-repo", "work/api"
+    needle = project.strip("/-").replace(os.sep, "-").lower()
+    hits = [d for d in have if needle in d.lower()]
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        raise ValueError(
+            f"{project!r} matches {len(hits)} projects:\n  " +
+            "\n  ".join(hits) + "\nUse more of the name.")
+    raise ValueError(
+        f"no project matching {project!r}. Available:\n  " + "\n  ".join(have or ["(none)"]))
+
+
 def candidates(root=None, project=None):
     """Transcript paths whose bytes suggest cross-session traffic."""
     root = root or DEFAULT_ROOT
-    pattern = os.path.join(root, project or "*", "*.jsonl")
+    pattern = os.path.join(root, resolve_project(project, root) or "*", "*.jsonl")
     out = []
     for path in sorted(glob.glob(pattern)):
         try:

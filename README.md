@@ -199,6 +199,31 @@ actual parse to confirm. The second stage matters — a transcript that merely
 *read* some source describing the message format contains the marker text without
 ever having used it, and only a parser can tell those apart.
 
+### Which projects it reads
+
+**By default, all of them.** It scans every project under `~/.claude/projects/`
+and keeps the transcripts that carry cross-session traffic, so unrelated work can
+end up on one page — useful when you have forgotten which project a conversation
+happened in, and not what you want if you are about to share the output.
+
+Scope it to one project with `--project`, which takes whichever form you have to
+hand:
+
+```bash
+agent-chatter --project ~/work/api      # a path to the project
+agent-chatter --project api             # its folder name
+agent-chatter --project my-repo         # any distinctive part of the name
+```
+
+If the fragment matches more than one project it lists them and stops, rather
+than guessing. `--list` always shows which project each transcript came from.
+
+Or bypass discovery entirely by naming files:
+
+```bash
+agent-chatter ~/.claude/projects/<project>/*.jsonl
+```
+
 ### All the commands
 
 ```bash
@@ -207,7 +232,7 @@ agent-chatter --list             # what it found
 agent-chatter --demo             # the bundled example
 agent-chatter --build page.html  # frozen, self-contained page you can send
 agent-chatter --log notes.md     # plain markdown, for grepping and diffing
-agent-chatter --project <dir>    # limit discovery to one project
+agent-chatter --project <name>   # one project: path, folder name, or fragment
 agent-chatter --watch <dir>      # serve every transcript in a directory
 agent-chatter --findings f.json  # add your curated entries
 agent-chatter path/to/*.jsonl    # explicit transcripts, skipping discovery
