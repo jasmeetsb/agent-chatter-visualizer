@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Render a frozen, publishable page from one or more session transcripts.
 
-    ./build-mesh-page.py ~/.claude/projects/<slug>/*.jsonl -o mesh.html
+    agent-chatter --build mesh.html
 
 Self-contained: no external fonts, scripts or images, so it works from disk and
 survives a strict CSP. Carries no attention panel — alerts are live state, and a
 published artifact must not assert which exchange mattered.
 
-Same renderer as serve-mesh.py, with the data inlined instead of polled. That is
+Same renderer as the live server, with the data inlined instead of polled. That is
 deliberate: two view codebases drift, and the failure is silent.
 """
 import argparse

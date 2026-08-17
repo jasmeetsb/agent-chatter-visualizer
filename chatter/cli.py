@@ -8,8 +8,8 @@
     ./agent-chatter --log p.md      plain markdown log
     ./agent-chatter <paths...>      explicit transcripts, skipping discovery
 
-Everything here is a thin front door onto serve-mesh.py, build-mesh-page.py and
-extract-peer-conversation.py, which still work directly. The reason it exists is
+Everything here is a thin front door onto chatter.server, chatter.page and
+chatter.mdlog, which can also be used directly. The reason it exists is
 that all three required paths, and a newcomer has no way to know that Claude Code
 stores transcripts under ~/.claude/projects/<flattened-project-path>/<uuid>.jsonl
 or which of those UUIDs ever spoke to a peer. Requiring that knowledge up front

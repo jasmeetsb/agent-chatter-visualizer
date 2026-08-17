@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Serve the live dashboard over a set of session transcripts.
 
-    ./serve-mesh.py ~/.claude/projects/<slug>/*.jsonl
-    ./serve-mesh.py --watch ~/.claude/projects/<slug>   # every .jsonl in a dir
+    agent-chatter
+    agent-chatter --watch <dir>          # every .jsonl in a directory
 
 Stdlib only, binds to localhost. Polling rather than SSE: the page fetches
 /feed?since=<seq> on a timer, which means the static page is the same page with

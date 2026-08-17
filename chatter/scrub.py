@@ -10,7 +10,7 @@ The pattern is deliberately broad. A false positive costs a redacted string in a
 generated file. A miss costs a credential in a published artifact.
 
 This lives in `chatter/` rather than beside a CLI on purpose. It used to live in
-`extract-peer-conversation.py`, so the entire stack imported its most
+a command script, so the entire stack imported its most
 safety-critical function out of a tool that was on its way to being deleted —
 anyone retiring that file would have silently taken the scrubber with it.
 Dependencies should point at the thing that is staying.
