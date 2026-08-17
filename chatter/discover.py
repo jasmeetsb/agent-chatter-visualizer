@@ -105,7 +105,8 @@ def find(root=None, project=None, model=None):
             if not meta.get("ghost"):
                 own = meta.get("name")
                 break
-        found.append((path, len(peers), own or os.path.basename(path)[:8]))
+        found.append((path, len(peers),
+                      own or "unnamed · " + os.path.basename(path)[:8]))
     model.reset()
     found.sort(key=lambda r: os.path.getmtime(r[0]), reverse=True)
     return found

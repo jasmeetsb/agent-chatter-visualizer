@@ -667,7 +667,12 @@ def build(paths):
         s.resolved = core
         # Display name never derives from the id either, for the same reason:
         # core[:8] of a path is a path fragment.
-        label = s.name or (s.uuid[:8] if s.uuid else f"session {s.sid}")
+        # A session that was never named has no display name of its own. Falling
+        # back to a bare uuid fragment produced labels like "003cddc9", which
+        # reads as a name and identifies nothing — say it is unnamed and keep the
+        # fragment as the disambiguator.
+        label = s.name or (f"unnamed · {s.uuid[:8]}" if s.uuid
+                           else f"unnamed · {s.sid}")
         sessions[core] = {
             "name": label, "aka": list(s.aka), "uuid": s.uuid,
             "cwd": unhome(s.cwd), "branch": s.branch, "first": s.first, "last": s.last,
