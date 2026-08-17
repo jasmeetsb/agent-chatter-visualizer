@@ -1248,22 +1248,18 @@ function renderStream(d, now){
 
     top.appendChild(el('span', 'summ', e.preview || '(no summary)'));
 
-    const meta = el('span', 'meta');
-    (e.tags || []).forEach(g => meta.appendChild(el('span', 'pill', g)));
-    if(e.delivery) meta.appendChild(el('span', 'pill', e.delivery));
-    // Only claim a message never landed when we hold the recipient's transcript
-    // and can see it is absent. Against a ghost we hold nothing, so absence is
-    // not evidence — the alert panel already draws this distinction and the row
-    // pill did not, stamping "never landed" in red on messages that plainly
-    // arrived and were answered.
-    if(e.sides === 'out'){
-      meta.appendChild(isGhost(e.to_id)
-        ? el('span', 'pill warn', 'unconfirmed')
-        : el('span', 'pill crit', 'never landed'));
-    }
-    if(e.sides === 'in') meta.appendChild(el('span', 'pill warn', 'unconfirmed'));
-    meta.appendChild(el('span', 'pill', (e.words || 0) + 'w'));
-    top.appendChild(meta);
+    /* No pills on the row beyond the two clocks above.
+       There used to be five kinds: heuristic topic tags, the delivery mode, a
+       confirmation state, and a word count. None of them changed what a reader
+       would do next. The topic tags are a keyword match — "correction" fires on
+       any message containing the word — so they label without informing, which
+       is the exact failure the never-generate-findings rule exists to prevent,
+       reintroduced as decoration. "unconfirmed" is the normal state of every
+       message to a session whose transcript is on another machine, so it marked
+       ordinary traffic as suspect, permanently, in orange.
+       Everything real moved one click down, into the expanded row, where it is
+       an answer to a question someone asked rather than a permanent stripe of
+       jargon down the page. */
 
     const body = el('div', 'body');
     body.appendChild(el('pre', null, e.body || ''));
@@ -1287,6 +1283,26 @@ function renderStream(d, now){
       dl.appendChild(el('dd', null, fmtDur(tl))); dl.appendChild(el('dd', null, 'sent → delivered')); }
     if(dw !== null){ dl.appendChild(el('dt', null, 'dwell'));
       dl.appendChild(el('dd', null, fmtDur(dw))); dl.appendChild(el('dd', null, 'arrived → delivered')); }
+
+    /* Delivery mode and confirmation state, which used to be pills on the row.
+       Same facts, stated once, where someone is already reading detail — and in
+       words rather than a one-word label that needed the README to decode. */
+    if(e.delivery){
+      dl.appendChild(el('dt', null, 'delivery'));
+      dl.appendChild(el('dd', null, e.delivery));
+      dl.appendChild(el('dd', null, e.delivery === 'midturn'
+        ? 'arrived while the recipient was mid-tool-call'
+        : 'arrived at a turn boundary'));
+    }
+    if(e.sides !== 'both'){
+      dl.appendChild(el('dt', null, 'confirmed'));
+      dl.appendChild(el('dd', null, 'no'));
+      // Absence is only evidence when we hold the transcript that would show it.
+      dl.appendChild(el('dd', null, e.sides === 'in'
+        ? 'we hold no transcript for the sender'
+        : (isGhost(e.to_id) ? 'the recipient’s transcript is on another machine'
+                            : 'absent from the recipient’s transcript, which we hold')));
+    }
     body.appendChild(dl);
 
     // The open set lives in `ui`, not in the DOM. The stream is rebuilt on every
