@@ -20,6 +20,14 @@ database migration. No real transcript was used to make any image on this page.*
 
 ## 60 seconds to a dashboard
 
+Nothing to install:
+
+```bash
+uvx --from git+https://github.com/jasmeetsb/agent-chatter-visualizer agent-chatter --demo
+```
+
+Or clone it:
+
 ```bash
 git clone https://github.com/jasmeetsb/agent-chatter-visualizer.git
 cd agent-chatter-visualizer
@@ -44,7 +52,7 @@ serves them. Nothing to configure and nothing to look up.
 
 ### Who talks to whom
 
-<img src="docs/img/mesh.png" width="380" alt="Mesh of sessions">
+![Mesh of sessions](docs/img/mesh.png)
 
 Node size is how much a session **sent**; edge width is message volume; the arrow
 is direction. A **dashed** node is a session whose transcript you do not hold —
@@ -61,7 +69,7 @@ is actually doing the talking.
 
 ### Key insights & decisions
 
-<img src="docs/img/insights.png" width="360" alt="Key insights and decisions panel">
+![Key insights and decisions](docs/img/insights.png)
 
 One entry **per conversation**, not per message. Messages are grouped into
 exchanges by silence gaps, and each entry says what was discussed and what came
@@ -245,6 +253,19 @@ works from `file://` and survives a strict CSP.
 - **[TASKS.md](TASKS.md)** — open work, and what is deliberately not built.
 
 ---
+
+## Installing
+
+```bash
+uvx --from git+https://github.com/jasmeetsb/agent-chatter-visualizer agent-chatter
+pipx install git+https://github.com/jasmeetsb/agent-chatter-visualizer
+pip install git+https://github.com/jasmeetsb/agent-chatter-visualizer
+```
+
+There are **no runtime dependencies** — the whole tool is standard library, so it
+installs instantly, runs offline, and cannot rot when something upstream changes.
+The packaging metadata exists only to make it installable; a clone still works
+exactly as well.
 
 ## Licence
 

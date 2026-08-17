@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-chatter-visualizer"
+version = "0.1.0"
+description = "A live dashboard for the conversation between your Claude Code sessions"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "jasmeetsb" }]
+keywords = ["claude", "claude-code", "agents", "multi-agent", "dashboard", "observability"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Debuggers",
+]
+# No runtime dependencies, deliberately. The whole tool is standard library, so
+# it installs instantly, runs offline, and cannot rot when something upstream
+# changes. The only reason this file exists is to make it installable.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/jasmeetsb/agent-chatter-visualizer"
+Issues = "https://github.com/jasmeetsb/agent-chatter-visualizer/issues"
+
+[project.scripts]
+agent-chatter = "chatter.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["chatter"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"chatter/dashboard.html" = "chatter/dashboard.html"
+
+[tool.hatch.build.targets.sdist]
+include = ["chatter", "examples", "README.md", "LICENSE", "DESIGN.md", "TASKS.md", "AGENTS.md"]
