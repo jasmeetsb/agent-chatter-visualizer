@@ -31,6 +31,35 @@ DEMO = sorted(glob.glob(os.path.join(HERE, "examples", "mesh", "*.jsonl")))
 SAMPLE_FINDINGS = os.path.join(HERE, "examples", "sample-findings.json")
 
 
+def _shortest_unique(project, others):
+    """The least a user can type that still means this project and no other.
+
+    Suggesting the last dashed segment gives "dotfiles" for a project called
+    jsb-dotfiles, which is shorter than the name and can collide with anything
+    else ending the same way. Grow the suffix until it matches once, so whatever
+    is printed can be pasted and will work.
+    """
+    parts = project.strip("-").split("-")
+    for n in range(1, len(parts) + 1):
+        frag = "-".join(parts[-n:])
+        if sum(1 for p in others if frag.lower() in p.lower()) == 1:
+            return frag
+    return project
+
+
+def _project_flag(project, others):
+    """A --project argument that can be pasted and will work.
+
+    Two traps. The shortest unique fragment is usually a plain word, but when one
+    project's name is a prefix of another's there is no fragment that separates
+    them and the whole directory name is the only answer — and that begins with a
+    dash, which argparse reads as another flag. The `=` form gets a leading-dash
+    value past it.
+    """
+    frag = _shortest_unique(project, others)
+    return f"--project={frag}" if frag.startswith("-") else f"--project {frag}"
+
+
 def resolve(args):
     """Transcript paths: explicit, else the demo, else discovered."""
     if args.watch:
@@ -53,7 +82,27 @@ def resolve(args):
     if not rows:
         print(discover.describe(rows), file=sys.stderr)
         sys.exit(1)
-    return [r[0] for r in rows], f"{len(rows)} discovered transcript(s)"
+
+    # Never merge unrelated projects without being asked. Conversations from
+    # different projects on one page are not a mesh, they are two meshes drawn on
+    # top of each other: shared nothing, unrelated timelines, and a graph whose
+    # components have no reason to be beside each other. If the traffic spans
+    # more than one project, say which and let the caller choose.
+    projects = sorted({os.path.basename(os.path.dirname(r[0])) for r in rows})
+    if len(projects) > 1 and not (args.project or args.all_projects):
+        lines = [f"Found conversations in {len(projects)} projects:", ""]
+        for proj in projects:
+            hits = [r for r in rows if os.path.basename(os.path.dirname(r[0])) == proj]
+            total = sum(r[1] for r in hits)
+            lines.append(f"  {total:>4} messages   {proj}")
+            lines.append(f"               {_project_flag(proj, projects)}")
+        lines += ["", "Pick one with --project, or merge them all with --all."]
+        sys.exit("\n".join(lines))
+
+    scope = args.project or (projects[0] if projects else "")
+    label = f"{len(rows)} transcript(s)" + (f" in {scope}" if scope and not args.all_projects
+                                            else " across all projects")
+    return [r[0] for r in rows], label
 
 
 def main():
@@ -67,6 +116,9 @@ def main():
     ap.add_argument("paths", nargs="*", help="transcripts (default: discover them)")
     ap.add_argument("--list", action="store_true", help="show what was found and exit")
     ap.add_argument("--demo", action="store_true", help="use the bundled example")
+    ap.add_argument("--all", dest="all_projects", action="store_true",
+                    help="merge every project onto one page (default is to ask "
+                         "when the traffic spans more than one)")
     ap.add_argument("--project", metavar="NAME",
                     help="only this project: a path to it, its folder name, "
                          "or any distinctive part of the name")

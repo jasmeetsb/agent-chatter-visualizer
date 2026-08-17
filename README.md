@@ -201,13 +201,26 @@ ever having used it, and only a parser can tell those apart.
 
 ### Which projects it reads
 
-**By default, all of them.** It scans every project under `~/.claude/projects/`
-and keeps the transcripts that carry cross-session traffic, so unrelated work can
-end up on one page — useful when you have forgotten which project a conversation
-happened in, and not what you want if you are about to share the output.
+It scans every project under `~/.claude/projects/` for cross-session traffic —
+but **if it finds conversations in more than one project it stops and asks**,
+rather than drawing unrelated work on one page:
 
-Scope it to one project with `--project`, which takes whichever form you have to
-hand:
+```
+Found conversations in 3 projects:
+
+    40 messages   -home-you-github-api
+               --project api
+    12 messages   -home-you-github-notes
+               --project notes
+
+Pick one with --project, or merge them all with --all.
+```
+
+Two meshes on one page are not a bigger mesh — they share nothing, their
+timelines are unrelated, and the graph ends up with components that have no
+reason to be beside each other.
+
+`--project` takes whichever form you have to hand:
 
 ```bash
 agent-chatter --project ~/work/api      # a path to the project
@@ -215,8 +228,9 @@ agent-chatter --project api             # its folder name
 agent-chatter --project my-repo         # any distinctive part of the name
 ```
 
-If the fragment matches more than one project it lists them and stops, rather
-than guessing. `--list` always shows which project each transcript came from.
+If the fragment matches more than one project it lists them and stops rather
+than guessing, and `--all` merges everything deliberately. `--list` always shows
+which project each transcript came from.
 
 Or bypass discovery entirely by naming files:
 
@@ -233,6 +247,7 @@ agent-chatter --demo             # the bundled example
 agent-chatter --build page.html  # frozen, self-contained page you can send
 agent-chatter --log notes.md     # plain markdown, for grepping and diffing
 agent-chatter --project <name>   # one project: path, folder name, or fragment
+agent-chatter --all              # merge every project onto one page
 agent-chatter --watch <dir>      # serve every transcript in a directory
 agent-chatter --findings f.json  # add your curated entries
 agent-chatter path/to/*.jsonl    # explicit transcripts, skipping discovery
