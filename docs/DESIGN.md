@@ -1,9 +1,11 @@
 # Live multi-session dashboard — design contract
 
-Working document for the live view of an N-session agent mesh. Two sessions
-(`agent-chatter-vm1`, `agent-chatter-vm2`) are building it in parallel, so this
-file is the contract between them: **agree here before writing code that
-depends on it.**
+What the transcript format actually does, and why this tool reads it the way it
+does. Every claim here was measured on real transcripts from two machines rather
+than inferred from documentation — the two are referred to as machine A and
+machine B throughout.
+
+Re-verify before trusting any of it against a new Claude Code version.
 
 Status of each section is marked SETTLED or OPEN. Do not build against an OPEN
 item.
@@ -14,8 +16,9 @@ item.
 *finished* transcript. Four things break when you go to N sessions and live:
 
 1. **Identity is binary and hardcoded.** `extract()` emits the literal strings
-   `"VM1 -> VM2"` / `"VM2 -> VM1"`, and the page derives its channel with
-   `direction.startswith("VM1")`. There is no room for a third session.
+   a hardcoded pair of direction strings, and the page derived its channel by
+   testing which one a message started with. There was no room for a third
+   session.
 2. **Merging N transcripts double-counts.** Every logical message exists twice —
    outbound in the sender's JSONL, inbound in the receiver's. Merging is
    additive today, so a mesh inflates.
@@ -36,7 +39,7 @@ The delivering record carries the message at **top level**, not in the text:
 {"type": "user", "isMeta": true, "promptSource": "system",
  "origin": {"kind": "peer",
             "from": "bridge:session_01EXAMPLEVM2BBBBBBBBBBBB",
-            "name": "agent-chatter-vm2",
+            "name": "session-b",
             "fromMode": "prompting",
             "hopChain": ["aaaa1111bbbb2222cccc3333"],
             "body": "<full body, unescaped>"}}
@@ -66,9 +69,9 @@ An assistant `tool_use` block with `name == "SendMessage"`. Input keys:
 the full body. Measured on a live transcript, 16 of 16 diverged:
 
 ```
-message : 5044 chars      content : 50 chars      'vm1 here. Same repo (project-agent-chatter) clone…'
-message : 2927 chars      content : 50 chars      'vm1 addendum — I stopped speculating and inspecte…'
-message : 9835 chars      content : 50 chars      'vm1. I reproduced your claims on my own transcrip…'
+message : 5044 chars      content : 50 chars      'Taking the migration in two halves so we are not b…'
+message : 2927 chars      content : 50 chars      'Staging applied in 6 minutes, backfill running. Fl…'
+message : 9835 chars      content : 50 chars      'Runbook amended to 500 and marked REQUIRES VERIFIC…'
 ```
 
 So **never fall back to `content` for the body.** `message || content` silently
@@ -145,7 +148,7 @@ record for `<cross-session-message`" hits it.
 The obvious fix to the duplication above is "only ever construct a peer event
 from a record carrying `origin.kind == 'peer'`; `queue-operation` is telemetry,
 never a message source." **That rule is wrong and it fails silently.** Measured
-on vm2's transcript:
+on the other machine's transcript:
 
 ```
 distinct peer messages via queue-operation enqueue : 5
@@ -165,12 +168,12 @@ The two delivery modes are fully distinguishable, and this also settles the
 | Boundary | `enqueue`(content) → `dequeue`(**empty** content) | yes |
 | Mid-turn | `enqueue`(content) → `remove`(**full** content) | **no, never** |
 
-vm2's transcript: 2 boundary, 3 mid-turn peer, 1 mid-turn human.
+the other machine's transcript: 2 boundary, 3 mid-turn peer, 1 mid-turn human.
 
 Why the two machines disagreed, which is the part worth remembering: every
-message vm2 sent happened to reach vm1 at a turn boundary, so vm1's sample
+message machine B sent happened to reach machine A at a turn boundary, so one machine's sample
 contained zero mid-turn peer deliveries and supported "`origin` is always
-present". vm2's sample is the complement. Neither transcript alone can show this,
+present". the other machine's sample is the complement. Neither transcript alone can show this,
 and either alone generalises confidently to the wrong rule.
 
 **Model rule, corrected:** `queue-operation` / `enqueue` whose `content` starts
@@ -182,7 +185,7 @@ to merge them, not to discard either.
 Two things about that merge:
 
 - **Hash the inner body, not the raw content.** Raw `enqueue` and `remove`
-  content differ for the same message — by 62 and 112 bytes on vm2's transcript —
+  content differ for the same message — by 62 and 112 bytes on the other machine's transcript —
   so a raw hash fails to match them and reproduces the doubled counts the dedup
   was meant to prevent. **Nothing is truncated:** extracting the text between the
   tags makes the two copies byte-identical, sha1-for-sha1, in every observed
@@ -217,7 +220,7 @@ was the recipient busy when this landed? `delivery` is the category (read from
 `dequeue` vs `remove`); dwell is `delivered - enqueued`, the continuous version.
 
 **They are not derivable from each other, and the regimes overlap.** Measured on
-vm2's transcript, which has 7 mid-turn samples where vm1's has none:
+the other machine's transcript, which has 7 mid-turn samples where one machine's has none:
 
 ```
 boundary  n=2   0.014s .. 0.018s
@@ -260,12 +263,12 @@ even though neither live transcript can produce one.
 Sessions carry their own name in dedicated records, not message records:
 
 ```json
-{"type": "agent-name",   "agentName":   "agent-chatter-vm1", "sessionId": "..."}
-{"type": "custom-title", "customTitle": "agent-chatter-vm1", "sessionId": "..."}
+{"type": "agent-name",   "agentName":   "session-a", "sessionId": "..."}
+{"type": "custom-title", "customTitle": "session-a", "sessionId": "..."}
 ```
 
 **These appear once per rename.** The transcript that produced this document
-contains `agent-chatter-vm2` followed by `agent-chatter-vm1`, because the
+contains `session-b` followed by `session-a`, because the
 session was renamed mid-run. A parser that takes the *first* `agent-name` labels
 this session as its own peer and reverses every edge in the graph, with no error
 raised anywhere. Track the current name as you walk the file.
@@ -304,11 +307,11 @@ project's own live transcripts, the current `extract()` returns **5 messages, of
 which 2 are fabricated**:
 
 ```
-#1  body='…'          (1 char)   attributed VM2 -> VM1
-#2  body=']*>(.*?)'   (8 chars)  attributed VM2 -> VM1
+#1  body='…'          (1 char)   attributed to a real peer
+#2  body=']*>(.*?)'   (8 chars)  attributed to a real peer
 ```
 
-`#2` is a fragment of `extract-peer-conversation.py`'s own source, captured
+`#2` is a fragment of the extractor's own source, captured
 because the file was read into the session. Both machines reproduced the same
 two phantoms independently. Sources were: reads of the extractor, the README,
 `AGENTS.md`, and the fixture.
@@ -329,9 +332,9 @@ Primary: trust `origin.kind == "peer"`. Fallback: require a well-formed
 `from="bridge:..."` attribute. Never construct a message from a tag that cannot
 be attributed — **drop, don't guess.**
 
-Measured on vm1's transcript: 6 open tags found, exactly 1 kept, and it is the
+Measured on one machine's transcript: 6 open tags found, exactly 1 kept, and it is the
 real message. The 5 dropped carried attrs `' …'`, `''`, `'" in raw:\n81\t…'`,
-`''`, `'[^'`. Perfect separation on vm2's transcript as well.
+`''`, `'[^'`. Perfect separation on the other machine's transcript as well.
 
 ## Event schema — SETTLED except where noted
 
@@ -359,8 +362,8 @@ state re-sent on every poll.
  "sources": [...]}
 
 // sessions{} — keyed by ULID core
-{"01EXAMPLEVM1AAAAAAAAAAAA": {"name": "agent-chatter-vm1",
-                              "aka":  ["agent-chatter-vm2"],
+{"01EXAMPLEVM1AAAAAAAAAAAA": {"name": "session-a",
+                              "aka":  ["session-b"],
                               "uuid": null, "cwd": "…", "branch": "master",
                               "first": "…", "last": "…"}}
 ```
@@ -375,7 +378,7 @@ Each non-obvious choice and why:
   don't hold.
 - **Three clocks, all nullable.** A single receiver-side timestamp conflates two
   genuinely different events. Measured gaps between `enqueue` and its matching
-  `dequeue`/`remove` on vm1's transcript: boundary deliveries 0.010–0.018 s,
+  `dequeue`/`remove` on one machine's transcript: boundary deliveries 0.010–0.018 s,
   mid-turn deliveries 32.4 s and 68.3 s. Same field, two meanings, and no way to
   tell afterwards which one a given row holds — the silent-drift signature again.
   Splitting them buys two independent measurements:
@@ -424,13 +427,13 @@ is exchange depth.* Both falsified by the chain **stalling**. Reconstructed
 across both transcripts:
 
 ```
-vm1 -> vm2 #1   no hop-chain attr
-vm2 -> vm1 #1   len 1   [A]
-vm1 -> vm2 #2   len 2   [A,B]
-vm2 -> vm1 #2   len 3   [A,B,A]
-vm1 -> vm2 #3   len 4
-vm2 -> vm1 #3   len 3   [A,B,A]      <-- growth stops
-vm2 -> vm1 #4   len 3   [A,B,A]      <-- still 3, byte-identical
+machine A -> machine B #1   no hop-chain attr
+machine B -> machine A #1   len 1   [A]
+machine A -> machine B #2   len 2   [A,B]
+machine B -> machine A #2   len 3   [A,B,A]
+machine A -> machine B #3   len 4
+machine B -> machine A #3   len 3   [A,B,A]      <-- growth stops
+machine B -> machine A #4   len 3   [A,B,A]      <-- still 3, byte-identical
 ```
 
 Eight-plus messages into the thread, one side's chain is pinned at 3 while the
@@ -674,8 +677,8 @@ send a message.
 
 | Owner | Files |
 |---|---|
-| vm1 | `chatter/model.py` — parse (origin primary + attributed fallback), ULID normalization, sessions table, two-pass pairing, tail/checkpoint, seq + snapshot_id, both human shapes, `hops`, queue-operation exclusion. Plus `examples/`. |
-| vm2 | Renderer, server, all views. Imports the model so the static builder resolves identically. |
+| machine A | `chatter/model.py` — parse (origin primary + attributed fallback), ULID normalization, sessions table, two-pass pairing, tail/checkpoint, seq + snapshot_id, both human shapes, `hops`, queue-operation exclusion. Plus `examples/`. |
+| machine B | Renderer, server, all views. Imports the model so the static builder resolves identically. |
 
 ### Fixture
 
@@ -713,16 +716,16 @@ these are the expensive kind:
 
 | Claim | Held by | Killed by |
 |---|---|---|
-| `origin` is the complete inbound set | vm1 | vm2's 3-of-5 mid-turn sample |
-| `hopChain` is a relay path | vm1 | repetition, then the stall |
-| `hopChain` grows +1 per message, so it is lineage | vm2 | the stall at length 3 |
+| `origin` is the complete inbound set | machine A | the other machine's 3-of-5 mid-turn sample |
+| `hopChain` is a relay path | machine A | repetition, then the stall |
+| `hopChain` grows +1 per message, so it is lineage | machine B | the stall at length 3 |
 | `len(hopChain)` == exchange depth; viable threading key | both | the stall at length 3 |
-| `hopChain` is unreadable on mid-turn deliveries | vm2, amplified by vm1 | the `hop-chain` attribute on the enqueue copy |
-| Delivery-mode regimes are cleanly separated | vm1 | vm2's `n=7` against vm1's `n=2` |
-| The empty credential grep is a shell quirk | vm2 | the NUL bytes in the template |
-| `events[]` is append-only and immutable | vm1 | argument, not data — see below |
+| `hopChain` is unreadable on mid-turn deliveries | machine B, amplified by machine A | the `hop-chain` attribute on the enqueue copy |
+| Delivery-mode regimes are cleanly separated | machine A | the other machine's `n=7` against one machine's `n=2` |
+| The empty credential grep is a shell quirk | machine B | the NUL bytes in the template |
+| `events[]` is append-only and immutable | machine A | argument, not data — see below |
 
-Four were vm1's, three vm2's, one both — and the counting matters, because this
+Four were one machine's, three the other machine's, one both — and the counting matters, because this
 table was written twice with the wrong tally. The first version merged in two
 traps found by inspection, inflating the count. The correction then cited
 `append-only` as a withdrawn claim while leaving it out of the table, so the table
@@ -740,9 +743,9 @@ reasoning, never on measurements" is stated as the rule below: reasoning is the
 one thing that did transfer between machines without needing to be re-run.
 
 **In every case the wrong answer explained all the data that machine had.** Not a
-sloppy answer — a *fitting* one. `origin` really was present on every message vm1
-held. The chain really did grow by one per message across every sample vm2 had.
-The regimes really were three orders of magnitude apart in vm1's two observations.
+sloppy answer — a *fitting* one. `origin` really was present on every message machine A
+held. The chain really did grow by one per message across every sample machine B had.
+The regimes really were three orders of magnitude apart in one machine's two observations.
 A wrong explanation that fits the evidence ends the investigation, because there
 is nothing left to be curious about.
 
@@ -754,9 +757,9 @@ one place where suspicion should have been highest. Care was not the missing
 ingredient. Neither was expertise.
 
 What actually broke each of these was the same thing every time: **the other
-machine held a sample that could produce a counterexample.** vm1's transcript had
+machine held a sample that could produce a counterexample.** one machine's transcript had
 zero mid-turn peer deliveries and structurally could not have refuted "origin is
-complete". vm2's had seven and refuted it immediately. Neither session was more
+complete". the other machine's had seven and refuted it immediately. Neither session was more
 careful than the other; they had different data.
 
 So the actionable rule is not "be careful", which nobody can act on. It is:

@@ -1,159 +1,105 @@
 # AGENTS.md
 
-Guidance for coding agents working in this repo.
+Guidance for coding agents working in this repository. Read
+[README.md](README.md) first for what the tool does; this file covers the things
+that will bite you.
 
-## What this is
+## Layout
 
-Two scripts that read the messages exchanged between paired Claude Code sessions
-out of a session transcript, and render them as a markdown log or a navigable
-HTML page. There is no application, no server, and no test suite — the
-deliverable is that the output is accurate, readable, and safe to publish.
-
-Read [README.md](README.md) first for usage. This file covers the things that
-will bite you.
+```
+agent-chatter        entry script for a git clone; the installed command runs the same code
+chatter/             the package
+  cli.py             argument parsing and dispatch
+  model.py           the single model: parse, identity, pairing, tailing
+  discover.py        finding transcripts worth reading
+  scrub.py           the one credential scrubber
+  render.py          fills the template
+  dashboard.html     the entire front end
+  server.py          live server
+  page.py            static page builder
+  mdlog.py           markdown log writer
+  examples/          the synthetic fixture, shipped so --demo works when installed
+tools/               fixture generator and verifier
+docs/                DESIGN.md and the README images
+```
 
 ## Rules that are not style preferences
 
 **Never write output without scrubbing it.** A session transcript contains
-everything ever pasted into that session. In the project this was written for
-that included a live cloud access token, which reached a committed file before
-anyone noticed. `SECRET` in `chatter/scrub.py` is the single definition and
-everything imports it. If you add a tool that writes transcript-derived content,
-import that scrubber; do not write a second one.
+everything ever pasted into that session. `chatter/scrub.py` holds the single
+definition; import it rather than writing a second one. Home directories, the
+flattened project directory name, and shell prompts in pasted terminal output are
+all handled in `model.py`, and `build()` refuses to emit if one slips through.
+That guard exists because the same leak arrived by five different routes, each
+fix correct and blind to the next.
 
-It lives in `chatter/` rather than beside a CLI for a reason: it used to live in
-`extract-peer-conversation.py`, so the whole stack imported its most
-safety-critical function out of a tool that was later queued for deletion.
-Anyone retiring that file on the reasonable belief it was dead would have taken
-credential scrubbing with it, silently. Dependencies point at what is staying.
-
-Check before committing or publishing anything generated:
+Before committing or publishing anything generated:
 
 ```bash
 grep -acE 'AIza[0-9A-Za-z_-]{30,}|ya29\.[0-9A-Za-z_.-]{20,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}' out.html
-# expect 0 — and expect a number. No output means the check did not run.
+# expect 0 — and expect a NUMBER. No output means the check did not run.
 ```
 
-**The `-a` is not optional.** One NUL byte anywhere in the file makes grep treat
-it as binary: the command then prints *nothing* and exits 1, which is
-indistinguishable from a clean result unless you are watching for it. This
-happened — four raw NULs used as map-key separators in a page template disabled
-this exact scan on every page built from it, and the silence read as success.
-`-a` forces the scan; a check that can be silently skipped on the credential path
-is worse than no check, because it is trusted.
+**Only one model.** The live server and the static builder both import
+`chatter/model.py`. Two parsers drift, and so do two identity resolvers — the
+failure is silent, and the page and the log end up disagreeing about what was
+said.
 
-Generated pages are asserted NUL-free at write time (`chatter/render.py`), but
-run this on anything transcript-derived regardless — the assertion protects the
-page builder, not you.
+**Never generate findings.** Heuristic tags exist for filtering. Deciding which
+exchange mattered is a judgement and belongs to whoever supplies `--findings`.
+The insights panel may surface a sentence in which a participant marked their own
+conclusion, quoted verbatim, and must keep that visually separate from curated
+entries. A tagger that also ranked importance would produce confident nonsense.
 
-**Keep the tools generic.** Nothing here should name a project, a machine, a
-model, or a person. Titles, channel labels and findings are all parameters. This
-repo was split out of a specific project and the split is only worth anything if
-it stays clean — if you find yourself hardcoding a subtitle, add a flag instead.
+**Alerts are structural only.** Silence, no reply, no delivery confirmation.
+Never keyword-based: a pattern like `wrong|corrected|refuted` fires on every
+message of a healthy design argument. Alerts are ephemeral and must never be
+written into a saved page.
 
-**Never generate findings.** The heuristic tags exist for filtering. Deciding
-which exchange mattered is a judgment call and belongs to whoever supplies
-`--findings`. A tagger that also ranked importance would produce confident
-nonsense, and the whole value of the findings section is that a human or an agent
-looked at the exchange and decided.
+## The front end
 
-**Only one model, not just one parse.** `chatter/model.py` is the only thing that
-reads a transcript. Every front-end — the live server, the static page builder,
-the markdown log — imports it and does no parsing of its own.
-
-The original rule was "only one parse", because two parsers drift and the failure
-is silent. At N sessions that is not enough: identity resolution, ULID
-normalisation and cross-transcript pairing drift exactly the same way. If
-normalisation lived in the server only, the static page would show four sessions
-where the live page showed seven, and nothing would raise an error.
-
-## Transcript format
-
-Peer messages appear in two shapes, and you need both:
-
-| Direction | Where it lives |
-|---|---|
-| Outbound | An assistant message with a `tool_use` block, `name == "SendMessage"`; the text is `input.message`, with `input.summary` as the headline |
-| Inbound | A `<cross-session-message …>…</cross-session-message>` block, which arrives inside a `text` block **or** inside a `tool_result` — check both |
-
-`message.content` is usually a list of blocks but can be a bare string. Lines
-that fail to parse as JSON are skipped rather than fatal; real transcripts have
-partial writes at the tail while a session is live.
-
-Transcripts live at `~/.claude/projects/<project-slug>/<session-id>.jsonl` and
-are typically 10–20 MB. **Do not read one into an agent context** — process it
-with a script. That is what these tools are for.
-
-## Testing
-
-There is no test suite. `examples/` is the fixture:
-
-```bash
-./examples/verify-mesh-fixture.py                       # every case still present
-./build-mesh-page.py examples/mesh/*.jsonl -o /tmp/page.html
-./extract-peer-conversation.py examples/mesh/*.jsonl -o /tmp/log.md
-```
-
-Expect 16 events across 4 sessions. `examples/mesh/` is generated by
-`make-mesh-fixture.py` — add cases by editing the exchange list there and
-regenerating, never by hand-editing the JSONL. The verifier reads the JSONL
-directly rather than importing the model, deliberately: a verifier built on the
-parser can only tell you the two agree, which is not the question.
-
-`examples/sample-transcript.jsonl` is kept as a **regression case, not a legacy
-artifact**. It is the only committed input with no identity records at all — no
-`bridge-session`, no `agent-name` — which is what surfaced a bug where the
-transcript's filesystem path became the session id and rendered as a node label.
-Do not delete it as leftovers.
-
-If you change rendering, regenerate `examples/sample-coordination-log.md` and
-`examples/sample-coordination.html` in the same commit. They are committed
-deliberately, as the reference for what the output looks like, and stale examples
-are worse than none.
-
-## The HTML page
-
-**Self-contained, always.** No external fonts, scripts or images. It is published
-under a strict CSP that blocks them, and inlining also means the file works from
-disk. If you need a font, inline it as a data URI.
+**Self-contained, always.** No external fonts, scripts or images. The page is
+published under a strict CSP and also has to work from `file://`.
 
 **Three theme states, not two.** An explicit choice stamps `data-theme` on the
 root; the default "system" setting stamps *nothing*, so most viewers hit the
 un-stamped document where only `prefers-color-scheme` decides. Every colour token
 is defined on bare `:root` and redefined in both
 `@media (prefers-color-scheme: dark)` (guarded `:root:not([data-theme="light"])`)
-and `:root[data-theme="dark"]`. A colour whose only definition sits inside a media
-block renders one theme's text on the other theme's ground. Verify all three
-blocks carry the same token set after any palette change.
+and `:root[data-theme="dark"]`. Verify all three blocks carry the same token set
+after any palette change.
 
-**Nothing reaches the DOM as markup.** There is no `innerHTML` in the page and no
-escaping helper to forget to call: every value is bound with `textContent`, and
-SVG is built with `createElementNS`. Message text is arbitrary and contains `<`,
-`>` and `&` routinely — code fragments, XML-ish tags, shell redirections.
+**All peer-controlled content goes through `textContent`.** Session names and
+message bodies are written by other agents and can contain anything. Never
+`innerHTML` with data.
 
-The threat model is not malformed text, it is **peer-controlled** text. A session
-name is chosen by whoever runs that session and flows into graph labels, the
-legend, the filter chips and the alert panel — four surfaces, and someone will
-render one of them with `innerHTML` for convenience. The live page renders what a
-peer sent seconds earlier with nobody reviewing it, which makes it a more
-dangerous surface than the frozen page, not less. The renderer does not trust the
-model to have sanitised anything.
+**A CSS rule beats a presentation attribute.** Setting `fill="#fff"` on SVG text
+does nothing when the stylesheet carries `text{fill:…}`. Use an inline style.
 
-**No raw control bytes in the template.** A single NUL makes every generated page
-classify as binary, which silently disables the credential scan above.
-`chatter/render.py` refuses to emit a page containing one. Use an escape
-sequence, never a literal byte.
+**No raw control bytes in the template.** A NUL makes the file binary, which
+silently disables the credential grep above. `render.py` refuses to emit one.
+
+## Testing
+
+There is no test suite; the fixture is the test.
+
+```bash
+./tools/verify-fixture.py         # asserts every case is still present
+./agent-chatter --demo            # the same fixture, rendered
+```
+
+The fixture deliberately contains a phantom, a rename, both delivery modes, an
+unpaired message in each direction, a duplicated record, and a credential. Add
+cases by editing `tools/make-fixture.py` and regenerating, not by hand-editing
+the JSONL. If you change the fixture, run the verifier — it exists so nobody
+quietly removes a case that looks like junk.
 
 ## Conventions
 
-Standard library only. No build step, no package manager, no dependencies to
-install — someone should be able to clone this and run it.
+Standard library only. No build step, no runtime dependencies. Someone should be
+able to clone this and run it, or `uvx` it without installing anything.
 
-Scripts are executable with a `#!/usr/bin/env python3` shebang and work from any
-directory; each entry point resolves `chatter/` relative to its own path, not the
-caller's.
-
-Comments explain *why*. Several non-obvious choices here — the broad secret
-regex, the single model, findings not being generated — exist because the
-alternative failed in practice, and that reasoning is worth more than a
-description of what the line does.
+Comments explain *why*. Several non-obvious choices here exist because the
+alternative was tried and failed on real data, and that reasoning is worth more
+than a description of what the line does. [docs/DESIGN.md](docs/DESIGN.md)
+carries the measurements.

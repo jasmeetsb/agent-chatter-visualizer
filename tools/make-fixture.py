@@ -39,7 +39,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "mesh")
+OUT = os.path.join(HERE, os.pardir, "chatter", "examples", "mesh")
 
 # ULID cores. Synthetic — see DESIGN.md on why real session ids do not go in a
 # committed file. The three-prefix join is demonstrated identically by these.

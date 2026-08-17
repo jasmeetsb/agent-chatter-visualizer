@@ -37,4 +37,4 @@ packages = ["chatter"]
 "chatter/dashboard.html" = "chatter/dashboard.html"
 
 [tool.hatch.build.targets.sdist]
-include = ["chatter", "examples", "README.md", "LICENSE", "DESIGN.md", "TASKS.md", "AGENTS.md"]
+include = ["chatter", "tools", "docs", "README.md", "LICENSE", "AGENTS.md", "agent-chatter"]

@@ -19,7 +19,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MESH = os.path.join(HERE, "mesh")
+MESH = os.path.join(HERE, os.pardir, "chatter", "examples", "mesh")
 
 OPEN_TAG = re.compile(r"<cross-session-message([^>]*)>")
 WELL_FORMED = re.compile(r'\bfrom="bridge:[^"]+"')

@@ -1,109 +1,15 @@
 #!/usr/bin/env python3
-"""One command. Run it with no arguments and it finds your transcripts and serves.
+"""Run agent-chatter from a git clone, without installing anything.
 
-    ./agent-chatter                 live dashboard of every conversation found
-    ./agent-chatter --list          what it found, without starting anything
-    ./agent-chatter --demo          the bundled example, no real data touched
-    ./agent-chatter --build p.html  frozen self-contained page
-    ./agent-chatter --log p.md      plain markdown log
-    ./agent-chatter <paths...>      explicit transcripts, skipping discovery
-
-Everything here is a thin front door onto serve-mesh.py, build-mesh-page.py and
-extract-peer-conversation.py, which still work directly. The reason it exists is
-that all three required paths, and a newcomer has no way to know that Claude Code
-stores transcripts under ~/.claude/projects/<flattened-project-path>/<uuid>.jsonl
-or which of those UUIDs ever spoke to a peer. Requiring that knowledge up front
-is the difference between a tool someone tries and a tool someone reads about.
-
-Standard library only, like the rest of the repo. Nothing to install.
+The implementation lives in chatter/cli.py, which is also what the installed
+`agent-chatter` command runs. One code path for both, so a clone and an install
+cannot behave differently.
 """
-import argparse
 import os
-import subprocess
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-
-from chatter import discover  # noqa: E402
-
-DEMO = sorted(__import__("glob").glob(os.path.join(HERE, "examples", "mesh", "*.jsonl")))
-
-
-def resolve(args):
-    """Transcript paths: explicit, else the demo, else discovered."""
-    if args.watch:
-        return [], "watching " + args.watch
-    if args.paths:
-        return args.paths, "given on the command line"
-    if args.demo:
-        # Ship the sample findings with the demo. Without them a first run shows
-        # an empty curated tier, and the distinction between "a person judged
-        # this" and "a participant said this" — the whole point of the insights
-        # panel — is invisible exactly when someone is deciding whether to care.
-        if not args.findings:
-            sample = os.path.join(HERE, "examples", "sample-findings.json")
-            if os.path.exists(sample):
-                args.findings = sample
-        return DEMO, "the bundled example"
-    rows = discover.find(project=args.project)
-    if not rows:
-        print(discover.describe(rows), file=sys.stderr)
-        sys.exit(1)
-    return [r[0] for r in rows], f"{len(rows)} discovered transcript(s)"
-
-
-def main():
-    ap = argparse.ArgumentParser(
-        description="Dashboard for conversations between Claude Code sessions.",
-        epilog="With no arguments it finds your transcripts and serves them.")
-    ap.add_argument("paths", nargs="*", help="transcripts (default: discover them)")
-    ap.add_argument("--list", action="store_true", help="show what was found and exit")
-    ap.add_argument("--demo", action="store_true", help="use the bundled example")
-    ap.add_argument("--project", help="limit discovery to one project directory")
-    ap.add_argument("--watch", metavar="DIR",
-                    help="serve every transcript in DIR, re-reading as files appear "
-                         "— the cross-machine workflow, where you rsync both sides "
-                         "into one directory")
-    ap.add_argument("--build", metavar="FILE", help="write a self-contained page")
-    ap.add_argument("--log", metavar="FILE", help="write a markdown log")
-    ap.add_argument("--port", type=int, default=8787)
-    ap.add_argument("--title")
-    ap.add_argument("--findings", metavar="FILE")
-    args, extra = ap.parse_known_args()
-
-    if args.list:
-        rows = discover.find(project=args.project)
-        print(discover.describe(rows))
-        return
-
-    paths, why = resolve(args)
-    print(f"agent-chatter: {why}", file=sys.stderr)
-
-    def run(script, *rest):
-        cmd = [sys.executable, os.path.join(HERE, script)] + list(paths) + list(rest)
-        if args.watch:
-            cmd += ["--watch", args.watch]
-        if args.title:
-            cmd += ["--title", args.title]
-        # both the page builder and the live server take findings now; the
-        # markdown log does not, because a curated card has nowhere to go in it
-        if args.findings and script != "extract-peer-conversation.py":
-            cmd += ["--findings", args.findings]
-        return subprocess.call(cmd + extra)
-
-    if args.watch and (args.build or args.log):
-        import glob as _g
-        paths = sorted(_g.glob(os.path.join(args.watch, "*.jsonl")))
-        args.watch = None
-        if not paths:
-            sys.exit(f"no .jsonl transcripts in {args.watch}")
-    if args.build:
-        sys.exit(run("build-mesh-page.py", "-o", args.build))
-    if args.log:
-        sys.exit(run("extract-peer-conversation.py", "-o", args.log))
-    sys.exit(run("serve-mesh.py", "--port", str(args.port)))
-
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chatter.cli import main  # noqa: E402
 
 if __name__ == "__main__":
     main()

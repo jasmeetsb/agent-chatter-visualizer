@@ -660,7 +660,7 @@ function renderFindings(d){
   FINDINGS.forEach(f => {
     const li = el('li', 'find');
     li.setAttribute('data-kind', f.kind || 'method');
-    // `who` was VM1|VM2|both in the pair-only schema; it is now any session name.
+    // `who` was a fixed pair in the original schema; it is now any session name.
     // Resolve through the sessions table INCLUDING aka, so a finding written
     // before a rename still resolves after it — the alias list is already there.
     // Falls back to a neutral accent rather than guessing.

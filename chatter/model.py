@@ -669,9 +669,10 @@ def build(paths):
             "ghost": False, "src_id": s.sid,
         }
         # CURRENT names and FORMER names are not interchangeable, and treating
-        # them as one namespace inverts the graph. A session renamed vm2 -> vm1
-        # keeps "vm2" in its aka list, while the real peer is *called* vm2 now.
-        # Outbound carries a NAME, so every message addressed to "vm2" then
+        # them as one namespace inverts the graph. A session renamed session-b -> session-a
+        # keeps "session-b" in its aka list, while the real peer is *called*
+        # session-b now.
+        # Outbound carries a NAME, so every message addressed to "session-b" then
         # resolved to the sender itself and the mesh drew a 20-message self-loop
         # with no edge to the peer at all — observed on a live transcript.
         # Current names win outright; an alias only ever fills a gap.
